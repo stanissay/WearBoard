@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">WearBoard</string>
+    <string name="keyboard_ukrainian">Українська</string>
+    <string name="keyboard_english">English</string>
+</resources>
