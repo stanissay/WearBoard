@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SpaceBar
 import androidx.compose.ui.Modifier
@@ -59,6 +60,8 @@ object MainConstants {
 
     const val ACCELERATION_THRESHOLD = 12f
     const val ACCELERATION_DELAY = 1000
+
+    const val VOICE_REQUEST_CODE = 1001
 }
 
 object MainFunctions {
@@ -67,6 +70,7 @@ object MainFunctions {
     const val SHIFT = KeyEvent.KEYCODE_SHIFT_LEFT.toString()
     const val DELETE = KeyEvent.KEYCODE_DEL.toString()
     const val SETTINGS = "settings"
+    const val VOICE = "voice"
 }
 
 object MainColors {
@@ -199,13 +203,11 @@ object KeyboardLayouts {
         listOf(
             Key(
                 code = MainFunctions.SPACE,
-                primaryLabel = "␣",
                 icon = Icons.Default.SpaceBar,
                 type = KeyType.FUNCTION
             ),
             Key(
                 code = MainFunctions.DELETE,
-                primaryLabel = "⌫",
                 icon = Icons.AutoMirrored.Filled.Backspace,
                 type = KeyType.FUNCTION
             )
@@ -280,13 +282,11 @@ object KeyboardLayouts {
         listOf(
             Key(
                 code = MainFunctions.SPACE,
-                primaryLabel = "␣",
                 icon = Icons.Default.SpaceBar,
                 type = KeyType.FUNCTION
             ),
             Key(
                 code = MainFunctions.DELETE,
-                primaryLabel = "⌫",
                 icon = Icons.AutoMirrored.Filled.Backspace,
                 type = KeyType.FUNCTION
             )
@@ -359,13 +359,11 @@ object KeyboardLayouts {
         listOf(
             Key(
                 code = "space",
-                primaryLabel = "␣",
                 icon = Icons.Default.SpaceBar,
                 type = KeyType.FUNCTION
             ),
             Key(
                 code = "delete",
-                primaryLabel = "⌫",
                 icon = Icons.AutoMirrored.Filled.Backspace,
                 type = KeyType.FUNCTION
             )
@@ -376,12 +374,14 @@ object KeyboardLayouts {
         listOf(
             Key(
                 code = MainFunctions.SHIFT,
-                primaryLabel = "⇧",
                 icon = Icons.Default.KeyboardArrowUp
             ),
             Key(
+                code = MainFunctions.VOICE,
+                icon = Icons.Default.Mic
+            ),
+            Key(
                 code = MainFunctions.SETTINGS,
-                primaryLabel = "⚙",
                 icon = Icons.Default.Settings
             )
         )
