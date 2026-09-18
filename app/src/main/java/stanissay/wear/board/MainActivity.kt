@@ -34,17 +34,19 @@ fun MainScreen() {
     val context = LocalContext.current
     val state = rememberTransformingLazyColumnState()
     val transformationSpec = rememberTransformationSpec()
+    val versionName = context.packageManager
+        .getPackageInfo(context.packageName, 0).versionName ?: "0.0"
 
     TransformingLazyColumn(
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.colors.background),
         state = state,
-        contentPadding = PaddingValues(Constants.MAIN_PADDING)
+        contentPadding = PaddingValues(MainConstants.MAIN_PADDING)
     ) {
         item { WearSpacer(transformationSpec) }
         item {
             Box(
-                modifier = Modifier.fillMaxWidth().height(Constants.BASE_SIZE)
+                modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE)
                     .then(transformedItem(transformationSpec)),
                 contentAlignment = Alignment.Center
             ) { TitleText(text = stringResource(R.string.app_name)) }
@@ -52,10 +54,10 @@ fun MainScreen() {
         item {
             MainCard(
                 transformationSpec = transformationSpec,
-                contentPadding = Constants.NULL_PADDING
+                contentPadding = MainConstants.NULL_PADDING
             ) {
                 ClickableBox(
-                    modifier = Modifier.fillMaxWidth().height(Constants.BASE_SIZE),
+                    modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE),
                     onClick = {
                         context.startActivity(
                             Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)
@@ -67,6 +69,18 @@ fun MainScreen() {
                         maxLines = Int.MAX_VALUE
                     )
                 }
+            }
+        }
+        item {
+            Box(
+                modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE)
+                    .then(transformedItem(transformationSpec)),
+                contentAlignment = Alignment.Center
+            ) {
+                MainText(
+                    text = stringResource(R.string.version) + versionName,
+                    color = MaterialTheme.colors.surface
+                )
             }
         }
         item { WearSpacer(transformationSpec) }

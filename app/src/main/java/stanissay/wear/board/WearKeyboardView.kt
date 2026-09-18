@@ -1,5 +1,10 @@
 package stanissay.wear.board
 
+import android.content.Context
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.horizontalScroll
@@ -18,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -31,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextLayoutResult
@@ -38,11 +45,13 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.MaterialTheme
-import stanissay.wear.board.Constants.CURSOR_PADDING
+import stanissay.wear.board.MainConstants.CURSOR_PADDING
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.pow
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 @Composable
 fun KeyboardScreen(
@@ -60,13 +69,38 @@ fun KeyboardScreen(
     onCloseKeyboard: () -> Unit,
     onExtended: () -> Unit
 ) {
+    val context = LocalContext.current
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
     val haptic = LocalHapticFeedback.current
-    val thresholdPx = with(density) { (configuration.screenWidthDp * Constants.SWIPE_RATIO).dp.toPx() }
+    val thresholdPx = with(density) { (configuration.screenWidthDp * MainConstants.SWIPE_RATIO).dp.toPx() }
     var totalDragDistanceX by remember { mutableFloatStateOf(0f) }
     var totalDragDistanceY by remember { mutableFloatStateOf(0f) }
     var isSwipeHandled by remember { mutableStateOf(false) }
+
+    DisposableEffect(Unit) {
+        val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        var lastShakeTime = 0L
+
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent?) {
+                if (event == null) return
+                val accel = sqrt(event.values[0].pow(2) + event.values[1].pow(2) + event.values[2].pow(2)) - SensorManager.GRAVITY_EARTH
+                if (accel > MainConstants.ACCELERATION_THRESHOLD) {
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - lastShakeTime > MainConstants.ACCELERATION_DELAY) {
+                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onCloseKeyboard()
+                        lastShakeTime = currentTime
+                    }
+                }
+            }
+            override fun onAccuracyChanged(s: Sensor?, a: Int) {}
+        }
+        sensorManager.registerListener(listener, accelerometer, SensorManager.SENSOR_DELAY_NORMAL)
+        onDispose { sensorManager.unregisterListener(listener) }
+    }
 
     Box(
         modifier = modifier
@@ -109,8 +143,7 @@ fun KeyboardScreen(
         )
 
         Column(
-            modifier = modifier
-                .size(Constants.DISPLAY_SIZE)
+            modifier = modifier.size(MainConstants.DISPLAY_SIZE)
                 .align(Alignment.Center)
                 .background(MaterialTheme.colors.background),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -167,12 +200,11 @@ fun InputField(
     ClickableBox(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.small,
-        onClick = { onClick(KeyAction.Function(Key(code = Functions.ENTER, type = KeyType.FUNCTION))) },
+        onClick = { onClick(KeyAction.Function(Key(code = MainFunctions.ENTER, type = KeyType.FUNCTION))) },
         onLongClick = { onLongClick() }
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
+            modifier = Modifier.fillMaxSize()
                 .horizontalScroll(scrollState),
             contentAlignment = Alignment.CenterStart
         ) {
@@ -200,7 +232,7 @@ fun InputField(
                                     rect.height.toDp()
                                 }
                             )
-                            .width(Constants.THICKNESS)
+                            .width(MainConstants.THICKNESS)
                             .offset {
                                 IntOffset(
                                     rect.left.toInt(),
@@ -223,8 +255,7 @@ fun FunctionKeys(
     modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
@@ -232,14 +263,14 @@ fun FunctionKeys(
         keyboard.forEach { keys ->
             keys.forEach { key ->
                 ClickableBox(
-                    modifier = Modifier.size(Constants.BUTTON_SIZE),
+                    modifier = Modifier.size(MainConstants.BUTTON_SIZE),
                     onClick = { onKeyAction(KeyAction.Function(key)) }
                 ) {
                     if(key.icon != null) {
                         Icon(
                             imageVector = key.icon,
-                            modifier = Modifier.size(Constants.BUTTON_SIZE_S),
-                            tint = if (key.code == Functions.SHIFT &&
+                            modifier = Modifier.size(MainConstants.BUTTON_SIZE_S),
+                            tint = if (key.code == MainFunctions.SHIFT &&
                                 (keyboardState.shift || keyboardState.capsLock)
                             ) { MaterialTheme.colors.primary
                             } else { MaterialTheme.colors.secondary },
@@ -259,15 +290,14 @@ fun SuggestionRow(
     onClick: (String) -> Unit
 ) {
     Row(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
         suggestions.forEach { suggestion ->
             ClickableBox(
-                modifier = Modifier.size(Constants.BUTTON_SIZE),
+                modifier = Modifier.size(MainConstants.BUTTON_SIZE),
                 onClick = { onClick(suggestion) }
             ) { MainText(text = suggestion) }
         }
@@ -294,7 +324,7 @@ fun CircularKeypad(
 
         val now = System.currentTimeMillis()
         val isMultiTap = key == lastKey &&
-                now - lastPressTime <= Constants.MULTI_TAP_THRESHOLD && key.characters.isNotEmpty()
+                now - lastPressTime <= MainConstants.MULTI_TAP_THRESHOLD && key.characters.isNotEmpty()
 
         if (isMultiTap) {
             characterIndex = (characterIndex + 1) % key.characters.size
@@ -319,14 +349,13 @@ fun CircularKeypad(
     }
 
     BoxWithConstraints(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
             .aspectRatio(1f)
     ) {
         val sizePx = constraints.maxWidth.toFloat()
         val center = sizePx / 2f
         val keySizePx = with(LocalDensity.current) {
-            Constants.BUTTON_SIZE_L.toPx()
+            MainConstants.BUTTON_SIZE_L.toPx()
         }
         val radius = center - keySizePx / 2f
         val angleStep = (2 * PI) / keys.size
@@ -337,8 +366,7 @@ fun CircularKeypad(
             val y = center + radius * sin(angle).toFloat()
 
             ClickableBox(
-                modifier = Modifier
-                    .size(Constants.BUTTON_SIZE_L)
+                modifier = Modifier.size(MainConstants.BUTTON_SIZE_L)
                     .offset {
                         IntOffset(
                             (x - keySizePx / 2f).toInt(),
@@ -357,7 +385,7 @@ fun CircularKeypad(
                     if (key.icon != null) {
                         Icon(
                             imageVector = key.icon,
-                            modifier = Modifier.size(Constants.BUTTON_SIZE_S),
+                            modifier = Modifier.size(MainConstants.BUTTON_SIZE_S),
                             tint = MaterialTheme.colors.primary,
                             contentDescription = null
                         )

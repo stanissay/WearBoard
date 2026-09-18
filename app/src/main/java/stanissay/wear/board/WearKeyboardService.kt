@@ -33,6 +33,7 @@ class WearKeyboardService : InputMethodService() {
     private var lastShiftPressTime = 0L
     private var lastT9PressTime = 0L
     private var lastT9Key: Key? = null
+    private var keyboardVisible = false
     private val keyboard: List<List<Key>>
         get() = if (keyboardState.symbolsMode) { KeyboardLayouts.symbols
         } else { KeyboardLayouts.layouts.getValue(currentLayout) }
@@ -46,9 +47,7 @@ class WearKeyboardService : InputMethodService() {
         enableAllSubtypes()
     }
 
-    override fun onCurrentInputMethodSubtypeChanged(
-        subtype: InputMethodSubtype
-    ) {
+    override fun onCurrentInputMethodSubtypeChanged(subtype: InputMethodSubtype) {
         super.onCurrentInputMethodSubtypeChanged(subtype)
 
         currentLayout = when (subtype.languageTag.substringBefore("-")) {
@@ -98,7 +97,8 @@ class WearKeyboardService : InputMethodService() {
         if (
             event.source and InputDevice.SOURCE_ROTARY_ENCODER ==
             InputDevice.SOURCE_ROTARY_ENCODER &&
-            event.action == MotionEvent.ACTION_SCROLL
+            event.action == MotionEvent.ACTION_SCROLL &&
+            keyboardVisible
         ) {
             val delta = event.getAxisValue(MotionEvent.AXIS_SCROLL)
 
@@ -127,6 +127,7 @@ class WearKeyboardService : InputMethodService() {
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        keyboardVisible = true
         lifecycleOwner.onStart()
         lifecycleOwner.onResume()
         updateText()
@@ -134,6 +135,7 @@ class WearKeyboardService : InputMethodService() {
 
     override fun onFinishInputView(finishing: Boolean) {
         super.onFinishInputView(finishing)
+        keyboardVisible = false
         lifecycleOwner.onPause()
         lifecycleOwner.onStop()
     }
@@ -155,7 +157,7 @@ class WearKeyboardService : InputMethodService() {
                     KeyType.T9 -> {
                         val now = System.currentTimeMillis()
                         val sameKey = keyAction.key == lastT9Key
-                        val sequenceActive = sameKey && now - lastT9PressTime <= Constants.MULTI_TAP_THRESHOLD
+                        val sequenceActive = sameKey && now - lastT9PressTime <= MainConstants.MULTI_TAP_THRESHOLD
 
                         if (!sequenceActive && lastT9Key != null && !keyboardState.capsLock) {
                             keyboardState = keyboardState.copy(shift = false)
@@ -178,7 +180,7 @@ class WearKeyboardService : InputMethodService() {
                         t9TimeoutJob?.cancel()
 
                         t9TimeoutJob = serviceScope.launch {
-                            delay(Constants.MULTI_TAP_THRESHOLD.milliseconds)
+                            delay(MainConstants.MULTI_TAP_THRESHOLD.milliseconds)
 
                             if (lastT9Key == keyAction.key && !keyboardState.capsLock) {
                                 keyboardState = keyboardState.copy(shift = false)
@@ -199,11 +201,11 @@ class WearKeyboardService : InputMethodService() {
 
                     KeyType.FUNCTION -> {
                         when (keyAction.key.code) {
-                            Functions.DELETE -> {
+                            MainFunctions.DELETE -> {
                                 connection.deleteSurroundingText(1, 0)
                             }
 
-                            Functions.SPACE -> {
+                            MainFunctions.SPACE -> {
                                 connection.commitText(" ", 1)
 
                                 if (!keyboardState.capsLock) {
@@ -227,15 +229,15 @@ class WearKeyboardService : InputMethodService() {
 
             is KeyAction.Function -> {
                 when (keyAction.key.code) {
-                    Functions.DELETE -> {
+                    MainFunctions.DELETE -> {
                         connection.deleteSurroundingText(1, 0)
                     }
 
-                    Functions.SPACE -> {
+                    MainFunctions.SPACE -> {
                         connection.commitText(" ", 1)
                     }
 
-                    Functions.ENTER -> {
+                    MainFunctions.ENTER -> {
                         connection.sendKeyEvent(
                             KeyEvent(
                                 KeyEvent.ACTION_DOWN,
@@ -251,7 +253,7 @@ class WearKeyboardService : InputMethodService() {
                         )
                     }
 
-                    Functions.SHIFT -> {
+                    MainFunctions.SHIFT -> {
                         val now = System.currentTimeMillis()
 
                         if (keyboardState.capsLock) {
@@ -259,7 +261,7 @@ class WearKeyboardService : InputMethodService() {
                                 shift = false,
                                 capsLock = false
                             )
-                        } else if (now - lastShiftPressTime <= Constants.DOUBLE_TAP_THRESHOLD) {
+                        } else if (now - lastShiftPressTime <= MainConstants.DOUBLE_TAP_THRESHOLD) {
                             keyboardState = keyboardState.copy(
                                 shift = false,
                                 capsLock = true
@@ -273,7 +275,7 @@ class WearKeyboardService : InputMethodService() {
                         lastShiftPressTime = now
                     }
 
-                    Functions.SETTINGS -> {
+                    MainFunctions.SETTINGS -> {
                         val intent = Intent(this, MainActivity::class.java).apply {
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         }

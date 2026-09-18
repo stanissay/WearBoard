@@ -37,7 +37,7 @@ import androidx.wear.compose.material.*
 import androidx.wear.compose.material3.lazy.TransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 
-object Constants {
+object MainConstants {
     val BASE_SIZE = 36.dp
 
     val BUTTON_SIZE_S = 16.dp
@@ -56,9 +56,12 @@ object Constants {
     const val SWIPE_RATIO = 0.4f
     const val MULTI_TAP_THRESHOLD = 1000
     const val DOUBLE_TAP_THRESHOLD = 400L
+
+    const val ACCELERATION_THRESHOLD = 12f
+    const val ACCELERATION_DELAY = 1000
 }
 
-object Functions {
+object MainFunctions {
     const val ENTER = KeyEvent.KEYCODE_ENTER.toString()
     const val SPACE = KeyEvent.KEYCODE_SPACE.toString()
     const val SHIFT = KeyEvent.KEYCODE_SHIFT_LEFT.toString()
@@ -195,13 +198,13 @@ object KeyboardLayouts {
         ),
         listOf(
             Key(
-                code = Functions.SPACE,
+                code = MainFunctions.SPACE,
                 primaryLabel = "␣",
                 icon = Icons.Default.SpaceBar,
                 type = KeyType.FUNCTION
             ),
             Key(
-                code = Functions.DELETE,
+                code = MainFunctions.DELETE,
                 primaryLabel = "⌫",
                 icon = Icons.AutoMirrored.Filled.Backspace,
                 type = KeyType.FUNCTION
@@ -276,13 +279,13 @@ object KeyboardLayouts {
         ),
         listOf(
             Key(
-                code = Functions.SPACE,
+                code = MainFunctions.SPACE,
                 primaryLabel = "␣",
                 icon = Icons.Default.SpaceBar,
                 type = KeyType.FUNCTION
             ),
             Key(
-                code = Functions.DELETE,
+                code = MainFunctions.DELETE,
                 primaryLabel = "⌫",
                 icon = Icons.AutoMirrored.Filled.Backspace,
                 type = KeyType.FUNCTION
@@ -372,12 +375,12 @@ object KeyboardLayouts {
     val functions = listOf(
         listOf(
             Key(
-                code = Functions.SHIFT,
+                code = MainFunctions.SHIFT,
                 primaryLabel = "⇧",
                 icon = Icons.Default.KeyboardArrowUp
             ),
             Key(
-                code = Functions.SETTINGS,
+                code = MainFunctions.SETTINGS,
                 primaryLabel = "⚙",
                 icon = Icons.Default.Settings
             )

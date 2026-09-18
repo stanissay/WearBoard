@@ -52,8 +52,8 @@ fun MainCard(
     modifier: Modifier = Modifier,
     containerColor: Color = MaterialTheme.colors.surface,
     borderColor: Color = MainColors.TRANSPARENT,
-    contentPadding: Dp = Constants.MAIN_PADDING,
-    containerPadding: Dp = Constants.MAIN_PADDING,
+    contentPadding: Dp = MainConstants.MAIN_PADDING,
+    containerPadding: Dp = MainConstants.MAIN_PADDING,
     shape: Shape = ShapesStyle.medium,
     content: @Composable () -> Unit
 ) {
@@ -61,13 +61,13 @@ fun MainCard(
         modifier = modifier
             .padding(containerPadding)
             .shadow(
-                elevation = Constants.ELEVATION,
+                elevation = MainConstants.ELEVATION,
                 shape = shape
             )
             .clip(shape)
             .background(containerColor)
             .border(
-                width = Constants.THICKNESS,
+                width = MainConstants.THICKNESS,
                 color = borderColor,
                 shape = shape
             )
@@ -89,8 +89,8 @@ fun TransformingLazyColumnItemScope.MainCard(
     modifier: Modifier = Modifier,
     containerColor: Color = MaterialTheme.colors.surface,
     borderColor: Color = MainColors.TRANSPARENT,
-    contentPadding: Dp = Constants.MAIN_PADDING,
-    containerPadding: Dp = Constants.MAIN_PADDING,
+    contentPadding: Dp = MainConstants.MAIN_PADDING,
+    containerPadding: Dp = MainConstants.MAIN_PADDING,
     shape: Shape = ShapesStyle.medium,
     content: @Composable () -> Unit
 ) {
@@ -104,13 +104,13 @@ fun TransformingLazyColumnItemScope.MainCard(
                 }
             }
             .shadow(
-                elevation = Constants.ELEVATION,
+                elevation = MainConstants.ELEVATION,
                 shape = shape
             )
             .clip(shape)
             .background(containerColor)
             .border(
-                width = Constants.THICKNESS,
+                width = MainConstants.THICKNESS,
                 color = borderColor,
                 shape = shape
             )
@@ -299,7 +299,7 @@ fun SecondAccentText(
 @Composable
 fun TransformingLazyColumnItemScope.WearSpacer(transformationSpec: TransformationSpec) {
     Spacer(
-        modifier = Modifier.fillMaxWidth().height(Constants.BASE_SIZE)
+        modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE)
             .transformedHeight(this, transformationSpec)
             .graphicsLayer {
                 with(transformationSpec) {
