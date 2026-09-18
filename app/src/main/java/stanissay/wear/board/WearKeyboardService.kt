@@ -1,11 +1,8 @@
 package stanissay.wear.board
 
 import android.annotation.SuppressLint
-import android.app.PendingIntent
-import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.inputmethodservice.InputMethodService
-import android.speech.RecognizerIntent
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -134,19 +131,6 @@ class WearKeyboardService : InputMethodService() {
         lifecycleOwner.onStart()
         lifecycleOwner.onResume()
         updateText()
-    }
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == "VOICE_RESULT") {
-            val text = intent.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
-
-            if (!text.isNullOrEmpty()) {
-                currentInputConnection?.commitText(text, 1)
-                updateText()
-            }
-        }
-
-        return START_NOT_STICKY
     }
 
     override fun onFinishInputView(finishing: Boolean) {
@@ -291,9 +275,7 @@ class WearKeyboardService : InputMethodService() {
                         lastShiftPressTime = now
                     }
 
-                    MainFunctions.VOICE -> {
-                        startVoiceInput()
-                    }
+                    MainFunctions.VOICE -> {}
 
                     MainFunctions.SETTINGS -> {
                         val intent = Intent(this, MainActivity::class.java).apply {
@@ -307,38 +289,6 @@ class WearKeyboardService : InputMethodService() {
         }
 
         updateText()
-    }
-
-    @SuppressLint("WearRecents")
-    private fun startVoiceInput() {
-        val pendingIntent = PendingIntent.getService(
-            this,
-            MainConstants.VOICE_REQUEST_CODE,
-            Intent(this, WearKeyboardService::class.java).apply {
-                action = "VOICE_RESULT"
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-        )
-
-        val language = when (currentLayout) {
-            KeyboardLayout.UKRAINIAN -> "uk-UA"
-            KeyboardLayout.ENGLISH -> "en-US"
-        }
-
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-
-            putExtra(
-                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-            )
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, language)
-            putExtra(RecognizerIntent.EXTRA_RESULTS_PENDINGINTENT, pendingIntent)
-        }
-
-        try { startActivity(intent)
-        } catch (_: ActivityNotFoundException) { }
     }
 
     private fun updateText() {

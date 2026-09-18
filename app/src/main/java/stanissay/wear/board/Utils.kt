@@ -60,8 +60,6 @@ object MainConstants {
 
     const val ACCELERATION_THRESHOLD = 12f
     const val ACCELERATION_DELAY = 1000
-
-    const val VOICE_REQUEST_CODE = 1001
 }
 
 object MainFunctions {
@@ -377,12 +375,12 @@ object KeyboardLayouts {
                 icon = Icons.Default.KeyboardArrowUp
             ),
             Key(
-                code = MainFunctions.VOICE,
-                icon = Icons.Default.Mic
-            ),
-            Key(
                 code = MainFunctions.SETTINGS,
                 icon = Icons.Default.Settings
+            ),
+            Key(
+                code = MainFunctions.VOICE,
+                icon = Icons.Default.Mic
             )
         )
     )
