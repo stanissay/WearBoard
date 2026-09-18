@@ -11,10 +11,10 @@ android {
 
     defaultConfig {
         applicationId = "stanissay.wear.board"
-        minSdk = 33
+        minSdk = 34
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.0.1"
 
     }
 
@@ -41,6 +41,7 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.wear.compose:compose-material:1.7.0-rc01")
     implementation("androidx.wear.compose:compose-foundation:1.7.0-rc01")
     implementation("androidx.wear.compose:compose-material:1.6.2")
@@ -53,4 +54,5 @@ dependencies {
     implementation("androidx.compose.material3:material3:1.4.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
+    implementation("androidx.wear.compose:compose-material3:1.6.2")
 }

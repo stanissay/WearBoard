@@ -3,10 +3,14 @@ package stanissay.wear.board
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.inputmethodservice.InputMethodService
+import android.view.InputDevice
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.ExtractedTextRequest
+import android.view.inputmethod.InputMethodManager
+import android.view.inputmethod.InputMethodSubtype
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -20,25 +24,38 @@ import kotlin.time.Duration.Companion.milliseconds
 
 class WearKeyboardService : InputMethodService() {
     private lateinit var lifecycleOwner: ImeLifecycleOwner
-    private var currentLayout = KeyboardLayout.UKRAINIAN
+    private val serviceScope = CoroutineScope(Job() + Dispatchers.Main)
+    private var t9TimeoutJob: Job? = null
+    private var currentLayout by mutableStateOf(KeyboardLayout.ENGLISH)
     private var currentText by mutableStateOf("")
     private var cursorPosition by mutableIntStateOf(0)
     private var keyboardState by mutableStateOf(KeyboardState())
     private var lastShiftPressTime = 0L
     private var lastT9PressTime = 0L
     private var lastT9Key: Key? = null
-    private var t9TimeoutJob: Job? = null
-    private val serviceScope = CoroutineScope(Job() + Dispatchers.Main)
-
     private val keyboard: List<List<Key>>
-        get() = KeyboardLayouts.layouts.getValue(currentLayout)
+        get() = if (keyboardState.symbolsMode) { KeyboardLayouts.symbols
+        } else { KeyboardLayouts.layouts.getValue(currentLayout) }
     private val funKeyboard: List<List<Key>>
-        get() = KeyboardLayouts.layouts.getValue(KeyboardLayout.FUNCTION)
+        get() = KeyboardLayouts.functions
 
     override fun onCreate() {
         super.onCreate()
         lifecycleOwner = ImeLifecycleOwner()
         lifecycleOwner.onCreate()
+        enableAllSubtypes()
+    }
+
+    override fun onCurrentInputMethodSubtypeChanged(
+        subtype: InputMethodSubtype
+    ) {
+        super.onCurrentInputMethodSubtypeChanged(subtype)
+
+        currentLayout = when (subtype.languageTag.substringBefore("-")) {
+            "en" -> KeyboardLayout.ENGLISH
+            "uk" -> KeyboardLayout.UKRAINIAN
+            else -> KeyboardLayout.ENGLISH
+        }
     }
 
     override fun onCreateInputView(): View {
@@ -49,6 +66,9 @@ class WearKeyboardService : InputMethodService() {
         }
 
         return ComposeView(this).apply {
+            isFocusable = true
+            isFocusableInTouchMode = true
+
             setContent {
                 MainTheme {
                     KeyboardScreen(
@@ -59,18 +79,53 @@ class WearKeyboardService : InputMethodService() {
                         keyboardState = keyboardState,
                         suggestions = emptyList(),
                         onKeyAction = ::handleKey,
-                        onLongClick = {},
-                        onSuggestionClick = {}
+                        onLongClick = ::showKeyboardPicker,
+                        onSuggestionClick = {},
+                        onLangChange = { changeLanguage() },
+                        onCloseKeyboard = { requestHideSelf(0) },
+                        onExtended = {
+                            keyboardState = keyboardState.copy(
+                                symbolsMode = !keyboardState.symbolsMode
+                            )
+                        }
                     )
                 }
             }
         }
     }
 
-    override fun onStartInputView(
-        info: EditorInfo?,
-        restarting: Boolean
-    ) {
+    override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+        if (
+            event.source and InputDevice.SOURCE_ROTARY_ENCODER ==
+            InputDevice.SOURCE_ROTARY_ENCODER &&
+            event.action == MotionEvent.ACTION_SCROLL
+        ) {
+            val delta = event.getAxisValue(MotionEvent.AXIS_SCROLL)
+
+            if (delta != 0f) {
+                moveCursor(if (delta > 0f) -1 else 1)
+            }
+
+            return true
+        }
+
+        return super.onGenericMotionEvent(event)
+    }
+
+    override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
+        super.onStartInput(attribute, restarting)
+
+        val subtype = getSystemService(InputMethodManager::class.java)
+            .currentInputMethodSubtype
+
+        currentLayout = when (subtype?.languageTag?.substringBefore("-")) {
+            "uk" -> KeyboardLayout.UKRAINIAN
+            "en" -> KeyboardLayout.ENGLISH
+            else -> KeyboardLayout.ENGLISH
+        }
+    }
+
+    override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         lifecycleOwner.onStart()
         lifecycleOwner.onResume()
@@ -78,14 +133,14 @@ class WearKeyboardService : InputMethodService() {
     }
 
     override fun onFinishInputView(finishing: Boolean) {
+        super.onFinishInputView(finishing)
         lifecycleOwner.onPause()
         lifecycleOwner.onStop()
-        super.onFinishInputView(finishing)
     }
 
     override fun onDestroy() {
-        lifecycleOwner.onDestroy()
         super.onDestroy()
+        lifecycleOwner.onDestroy()
     }
 
     @SuppressLint("WearRecents")
@@ -100,7 +155,7 @@ class WearKeyboardService : InputMethodService() {
                     KeyType.T9 -> {
                         val now = System.currentTimeMillis()
                         val sameKey = keyAction.key == lastT9Key
-                        val sequenceActive = sameKey && now - lastT9PressTime <= UIConstants.MULTI_TAP_THRESHOLD
+                        val sequenceActive = sameKey && now - lastT9PressTime <= Constants.MULTI_TAP_THRESHOLD
 
                         if (!sequenceActive && lastT9Key != null && !keyboardState.capsLock) {
                             keyboardState = keyboardState.copy(shift = false)
@@ -123,7 +178,7 @@ class WearKeyboardService : InputMethodService() {
                         t9TimeoutJob?.cancel()
 
                         t9TimeoutJob = serviceScope.launch {
-                            delay(UIConstants.MULTI_TAP_THRESHOLD.milliseconds)
+                            delay(Constants.MULTI_TAP_THRESHOLD.milliseconds)
 
                             if (lastT9Key == keyAction.key && !keyboardState.capsLock) {
                                 keyboardState = keyboardState.copy(shift = false)
@@ -144,11 +199,11 @@ class WearKeyboardService : InputMethodService() {
 
                     KeyType.FUNCTION -> {
                         when (keyAction.key.code) {
-                            "delete" -> {
+                            Functions.DELETE -> {
                                 connection.deleteSurroundingText(1, 0)
                             }
 
-                            "space" -> {
+                            Functions.SPACE -> {
                                 connection.commitText(" ", 1)
 
                                 if (!keyboardState.capsLock) {
@@ -172,15 +227,15 @@ class WearKeyboardService : InputMethodService() {
 
             is KeyAction.Function -> {
                 when (keyAction.key.code) {
-                    "delete" -> {
+                    Functions.DELETE -> {
                         connection.deleteSurroundingText(1, 0)
                     }
 
-                    "space" -> {
+                    Functions.SPACE -> {
                         connection.commitText(" ", 1)
                     }
 
-                    "enter" -> {
+                    Functions.ENTER -> {
                         connection.sendKeyEvent(
                             KeyEvent(
                                 KeyEvent.ACTION_DOWN,
@@ -196,7 +251,7 @@ class WearKeyboardService : InputMethodService() {
                         )
                     }
 
-                    "shift" -> {
+                    Functions.SHIFT -> {
                         val now = System.currentTimeMillis()
 
                         if (keyboardState.capsLock) {
@@ -204,7 +259,7 @@ class WearKeyboardService : InputMethodService() {
                                 shift = false,
                                 capsLock = false
                             )
-                        } else if (now - lastShiftPressTime <= UIConstants.DOUBLE_TAP_THRESHOLD) {
+                        } else if (now - lastShiftPressTime <= Constants.DOUBLE_TAP_THRESHOLD) {
                             keyboardState = keyboardState.copy(
                                 shift = false,
                                 capsLock = true
@@ -218,7 +273,7 @@ class WearKeyboardService : InputMethodService() {
                         lastShiftPressTime = now
                     }
 
-                    "settings" -> {
+                    Functions.SETTINGS -> {
                         val intent = Intent(this, MainActivity::class.java).apply {
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         }
@@ -240,5 +295,38 @@ class WearKeyboardService : InputMethodService() {
             currentText = extracted.text?.toString() ?: ""
             cursorPosition = extracted.selectionStart
         }
+    }
+
+    private fun changeLanguage() {
+        val imm = getSystemService(InputMethodManager::class.java)
+        val info = imm.currentInputMethodInfo ?: return
+        val currentSubtype = imm.currentInputMethodSubtype
+        val currentLanguage = currentSubtype?.languageTag
+
+        val targetLanguage = when (currentLanguage) {
+            "en" -> "uk"
+            "uk" -> "en"
+            else -> return
+        }
+
+        val subtypes = (0 until info.subtypeCount).map { info.getSubtypeAt(it) }
+        val subtype = subtypes.firstOrNull { it.languageTag == targetLanguage } ?: return
+
+        switchInputMethod(info.id, subtype)
+    }
+
+    private fun moveCursor(direction: Int) {
+        val connection = currentInputConnection ?: return
+        val newPosition = (cursorPosition + direction).coerceIn(0, currentText.length)
+
+        if (newPosition == cursorPosition) return
+
+        connection.setSelection(newPosition, newPosition)
+
+        updateText()
+    }
+
+    private fun showKeyboardPicker() {
+        getSystemService(InputMethodManager::class.java).showInputMethodPicker()
     }
 }
