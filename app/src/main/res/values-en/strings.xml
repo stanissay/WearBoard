@@ -1,4 +1,5 @@
 <resources>
     <string name="enable_in_settings">Enable in settings</string>
     <string name="version">Version </string>
+    <string name="listen">Listen</string>
 </resources>

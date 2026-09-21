@@ -16,6 +16,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
+import androidx.core.content.edit
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
@@ -123,6 +124,14 @@ class WearKeyboardService : InputMethodService() {
             "en" -> KeyboardLayout.ENGLISH
             else -> KeyboardLayout.ENGLISH
         }
+
+        readVoiceResult()
+    }
+
+    override fun onWindowShown() {
+        super.onWindowShown()
+
+        readVoiceResult()
     }
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
@@ -131,6 +140,7 @@ class WearKeyboardService : InputMethodService() {
         lifecycleOwner.onStart()
         lifecycleOwner.onResume()
         updateText()
+        readVoiceResult()
     }
 
     override fun onFinishInputView(finishing: Boolean) {
@@ -275,7 +285,7 @@ class WearKeyboardService : InputMethodService() {
                         lastShiftPressTime = now
                     }
 
-                    MainFunctions.VOICE -> {}
+                    MainFunctions.VOICE -> { startVoiceInput() }
 
                     MainFunctions.SETTINGS -> {
                         val intent = Intent(this, MainActivity::class.java).apply {
@@ -332,5 +342,39 @@ class WearKeyboardService : InputMethodService() {
 
     private fun showKeyboardPicker() {
         getSystemService(InputMethodManager::class.java).showInputMethodPicker()
+    }
+
+    @SuppressLint("WearRecents")
+    private fun startVoiceInput() {
+        val language = when (currentLayout) {
+            KeyboardLayout.UKRAINIAN -> "uk-UA"
+            KeyboardLayout.ENGLISH -> "en-US"
+        }
+
+        getSharedPreferences(MainConstants.PREFS, MODE_PRIVATE).edit {
+            remove(MainConstants.RESULT_TEXT)
+        }
+
+        val intent = Intent(this, VoiceBridgeActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            putExtra(MainConstants.EXTRA_LANGUAGE, language)
+        }
+
+        startActivity(intent)
+    }
+
+    private fun readVoiceResult() {
+        val prefs = getSharedPreferences(MainConstants.PREFS, MODE_PRIVATE)
+        val result = prefs.getString(MainConstants.RESULT_TEXT, null)
+
+        if (!result.isNullOrEmpty()) {
+            prefs.edit {
+                remove(MainConstants.RESULT_TEXT)
+            }
+
+            currentInputConnection?.commitText(result, 1)
+
+            updateText()
+        }
     }
 }

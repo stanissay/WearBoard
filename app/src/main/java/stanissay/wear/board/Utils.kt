@@ -39,6 +39,11 @@ import androidx.wear.compose.material3.lazy.TransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 
 object MainConstants {
+    const val PREFS = "voice_debug"
+    const val RESULT_TEXT = "result_text"
+    const val EXTRA_LANGUAGE = "voice_language"
+    const val REQUEST_VOICE = 1001
+
     val BASE_SIZE = 36.dp
 
     val BUTTON_SIZE_S = 16.dp
@@ -137,8 +142,8 @@ object KeyboardLayouts {
         listOf(
             Key(
                 code = "0",
-                characters = listOf(' ', '0'),
-                secondaryLabel = "␣",
+                characters = listOf('-', '+', '*', '/', '=', '0'),
+                secondaryLabel = "-+*/=",
                 type = KeyType.T9
             ),
             Key(
@@ -216,8 +221,8 @@ object KeyboardLayouts {
         listOf(
             Key(
                 code = "0",
-                characters = listOf(' ', '0'),
-                secondaryLabel = "␣",
+                characters = listOf('-', '+', '*', '/', '=', '0'),
+                secondaryLabel = "-+*/=",
                 type = KeyType.T9
             ),
             Key(
@@ -294,15 +299,15 @@ object KeyboardLayouts {
     val symbols = listOf(
         listOf(
             Key(
-                code = "+",
-                characters = listOf('-', '=', '+'),
-                secondaryLabel = "-=",
+                code = "_",
+                characters = listOf('\\', '|', '_'),
+                secondaryLabel = "\\|",
                 type = KeyType.T9
             ),
             Key(
-                code = "*",
-                characters = listOf('/', '\\', '|', '%', '*'),
-                secondaryLabel = "/\\|%",
+                code = "%",
+                characters = listOf('^', '√', '%'),
+                secondaryLabel = "^√",
                 type = KeyType.T9
             ),
             Key(
@@ -375,12 +380,12 @@ object KeyboardLayouts {
                 icon = Icons.Default.KeyboardArrowUp
             ),
             Key(
-                code = MainFunctions.SETTINGS,
-                icon = Icons.Default.Settings
-            ),
-            Key(
                 code = MainFunctions.VOICE,
                 icon = Icons.Default.Mic
+            ),
+            Key(
+                code = MainFunctions.SETTINGS,
+                icon = Icons.Default.Settings
             )
         )
     )
