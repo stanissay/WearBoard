@@ -40,6 +40,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -266,14 +267,18 @@ fun FunctionKeys(
                     modifier = Modifier.size(MainConstants.BUTTON_SIZE),
                     onClick = { onKeyAction(KeyAction.Function(key)) }
                 ) {
-                    if(key.icon != null) {
+                    if (key.icon != null) {
                         Icon(
-                            imageVector = key.icon,
+                            painter = painterResource(key.icon),
                             modifier = Modifier.size(MainConstants.BUTTON_SIZE_S),
-                            tint = if (key.code == MainFunctions.SHIFT &&
+                            tint = if (
+                                key.code == MainFunctions.SHIFT &&
                                 (keyboardState.shift || keyboardState.capsLock)
-                            ) { MaterialTheme.colors.primary
-                            } else { MaterialTheme.colors.secondary },
+                            ) {
+                                MaterialTheme.colors.primary
+                            } else {
+                                MaterialTheme.colors.secondary
+                            },
                             contentDescription = null
                         )
                     } else { SecondAccentText(text = key.primaryLabel) }
@@ -384,9 +389,16 @@ fun CircularKeypad(
                 ) {
                     if (key.icon != null) {
                         Icon(
-                            imageVector = key.icon,
+                            painter = painterResource(key.icon),
                             modifier = Modifier.size(MainConstants.BUTTON_SIZE_S),
-                            tint = MaterialTheme.colors.primary,
+                            tint = if (
+                                key.code == MainFunctions.SHIFT &&
+                                (keyboardState.shift || keyboardState.capsLock)
+                            ) {
+                                MaterialTheme.colors.primary
+                            } else {
+                                MaterialTheme.colors.secondary
+                            },
                             contentDescription = null
                         )
                     } else {

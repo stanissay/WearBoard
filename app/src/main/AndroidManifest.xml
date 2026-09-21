@@ -30,7 +30,6 @@
             <meta-data
                 android:name="android.view.im"
                 android:resource="@xml/method" />
-
         </service>
 
         <meta-data
@@ -51,6 +50,8 @@
         <activity
             android:name=".VoiceBridgeActivity"
             android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
             android:taskAffinity="">
         </activity>
     </application>

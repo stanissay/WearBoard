@@ -48,6 +48,10 @@ class WearKeyboardService : InputMethodService() {
         enableAllSubtypes()
     }
 
+    override fun onEvaluateFullscreenMode(): Boolean {
+        return true
+    }
+
     override fun onCurrentInputMethodSubtypeChanged(subtype: InputMethodSubtype) {
         super.onCurrentInputMethodSubtypeChanged(subtype)
 
@@ -266,18 +270,18 @@ class WearKeyboardService : InputMethodService() {
                     MainFunctions.SHIFT -> {
                         val now = System.currentTimeMillis()
 
-                        if (keyboardState.capsLock) {
-                            keyboardState = keyboardState.copy(
+                        keyboardState = if (keyboardState.capsLock) {
+                            keyboardState.copy(
                                 shift = false,
                                 capsLock = false
                             )
                         } else if (now - lastShiftPressTime <= MainConstants.DOUBLE_TAP_THRESHOLD) {
-                            keyboardState = keyboardState.copy(
+                            keyboardState.copy(
                                 shift = false,
                                 capsLock = true
                             )
                         } else {
-                            keyboardState = keyboardState.copy(
+                            keyboardState.copy(
                                 shift = !keyboardState.shift
                             )
                         }
