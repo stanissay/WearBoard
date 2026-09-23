@@ -3,6 +3,7 @@
     <string name="keyboard_ukrainian" translatable="false">Українська</string>
     <string name="keyboard_english" translatable="false">English</string>
     <string name="enable_in_settings">Enable in settings</string>
+    <string name="dictionaries">Dictionaries</string>
     <string name="version">Version </string>
     <string name="listen">Listen</string>
 </resources>

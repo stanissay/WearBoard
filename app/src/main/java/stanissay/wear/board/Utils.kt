@@ -58,6 +58,9 @@ object MainConstants {
 
     const val ACCELERATION_THRESHOLD = 12f
     const val ACCELERATION_DELAY = 1000
+
+    const val EN_DIC = "https://raw.githubusercontent.com/stanissay/WearBoard/main/dictionaries/en-utf8.zip"
+    const val UK_DIC = "https://raw.githubusercontent.com/stanissay/WearBoard/main/dictionaries/uk-utf8.zip"
 }
 
 object MainFunctions {
@@ -131,7 +134,7 @@ sealed interface KeyAction {
 }
 
 object KeyboardLayouts {
-    private val english = listOf(
+    val english = listOf(
         listOf(
             Key(
                 code = "0",
@@ -210,7 +213,7 @@ object KeyboardLayouts {
         )
     )
 
-    private val ukrainian = listOf(
+    val ukrainian = listOf(
         listOf(
             Key(
                 code = "0",

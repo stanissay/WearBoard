@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
@@ -18,19 +19,25 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 
 class MainActivity : ComponentActivity() {
+    private val viewModel: MainViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableAllSubtypes()
         setContent {
             MainTheme {
-                MainScreen()
+                if(!viewModel.showDictionaries) {
+                    MainScreen(viewModel)
+                } else {
+                    DictionariesScreen(viewModel)
+                }
             }
         }
     }
 }
 
 @Composable
-fun MainScreen() {
+fun MainScreen(viewModel: MainViewModel) {
     val context = LocalContext.current
     val state = rememberTransformingLazyColumnState()
     val transformationSpec = rememberTransformationSpec()
@@ -72,6 +79,17 @@ fun MainScreen() {
             }
         }
         item {
+            MainCard(
+                transformationSpec = transformationSpec,
+                contentPadding = MainConstants.NULL_PADDING
+            ) {
+                ClickableBox(
+                    modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE),
+                    onClick = { viewModel.showDictionaries = true }
+                ) { MainText(text = stringResource(R.string.dictionaries)) }
+            }
+        }
+        item {
             Box(
                 modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE)
                     .then(transformedItem(transformationSpec)),
@@ -81,6 +99,60 @@ fun MainScreen() {
                     text = stringResource(R.string.version) + versionName,
                     color = MaterialTheme.colors.surface
                 )
+            }
+        }
+        item { WearSpacer(transformationSpec) }
+    }
+}
+
+@Composable
+fun DictionariesScreen(viewModel: MainViewModel) {
+    val state = rememberTransformingLazyColumnState()
+    val transformationSpec = rememberTransformationSpec()
+
+    TransformingLazyColumn(
+        modifier = Modifier.fillMaxSize()
+            .background(MaterialTheme.colors.background),
+        state = state,
+        contentPadding = PaddingValues(MainConstants.MAIN_PADDING)
+    ) {
+        item { WearSpacer(transformationSpec) }
+        item {
+            Box(
+                modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE)
+                    .then(transformedItem(transformationSpec)),
+                contentAlignment = Alignment.Center
+            ) { TitleText(text = stringResource(R.string.dictionaries)) }
+        }
+        item {
+            MainCard(
+                transformationSpec = transformationSpec,
+                contentPadding = MainConstants.NULL_PADDING
+            ) {
+                ClickableBox(
+                    modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE),
+                    onClick = {
+                        if(!viewModel.isDictionaryLoaded(KeyboardLayout.ENGLISH)) {
+                            viewModel.downloadDictionary(KeyboardLayout.ENGLISH)
+                        }
+                    }
+                ) {
+                    MainText(
+                        text = stringResource(R.string.keyboard_english)
+                    )
+                }
+                ClickableBox(
+                    modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE),
+                    onClick = {
+                        if(!viewModel.isDictionaryLoaded(KeyboardLayout.UKRAINIAN)) {
+                            viewModel.downloadDictionary(KeyboardLayout.UKRAINIAN)
+                        }
+                    }
+                ) {
+                    MainText(
+                        text = stringResource(R.string.keyboard_ukrainian)
+                    )
+                }
             }
         }
         item { WearSpacer(transformationSpec) }
