@@ -15,7 +15,7 @@ android {
         minSdk = 34
         targetSdk = 36
         versionCode = 1
-        versionName = "1.3"
+        versionName = "1.4"
     }
 
     buildTypes {
@@ -45,9 +45,9 @@ dependencies {
 
     implementation("androidx.wear:wear:1.4.0")
 
-    implementation("androidx.wear.compose:compose-foundation:1.7.0-rc01")
-    implementation("androidx.wear.compose:compose-material:1.7.0-rc01")
-    implementation("androidx.wear.compose:compose-material3:1.6.2")
+    implementation("androidx.wear.compose:compose-foundation:1.7.0")
+    implementation("androidx.wear.compose:compose-material:1.7.0")
+    implementation("androidx.wear.compose:compose-material3:1.7.0")
 
     implementation("com.google.android.gms:play-services-wearable:20.0.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")

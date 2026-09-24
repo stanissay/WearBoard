@@ -1,5 +1,6 @@
 package stanissay.wear.board
 
+import android.content.Context
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -7,6 +8,7 @@ import androidx.room.Index
 import androidx.room.Insert
 import androidx.room.PrimaryKey
 import androidx.room.Query
+import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Transaction
 
@@ -59,20 +61,20 @@ interface DictionaryDao {
     }
 
     @Query("""
-    SELECT * FROM words
+    SELECT id, word, t9, frequency FROM words
     WHERE t9 LIKE :t9 || '%'
+      AND t9 != :t9
     ORDER BY frequency DESC
     LIMIT 5
 """)
-    fun getSuggestions(t9: String): List<DictionaryWord>
+    fun getPrefixSuggestions(t9: String): List<DictionaryWord>
 
     @Query("""
-    SELECT * FROM words
+    SELECT id, word, t9, frequency FROM words
     WHERE t9 = :t9
     ORDER BY frequency DESC
-    LIMIT 1
 """)
-    fun getExactSuggestion(t9: String): DictionaryWord?
+    fun getExactSuggestions(t9: String): List<DictionaryWord>
 
     @Query("SELECT COUNT(*) FROM words")
     fun count(): Int
@@ -92,4 +94,17 @@ interface DictionaryDao {
 abstract class DictionaryDatabase : RoomDatabase() {
 
     abstract fun dictionaryDao(): DictionaryDao
+}
+
+fun createDictionaryDatabase(language: KeyboardLayout, context: Context): DictionaryDatabase {
+    val name = when (language) {
+        KeyboardLayout.ENGLISH -> "en.db"
+        KeyboardLayout.UKRAINIAN -> "uk.db"
+    }
+
+    return Room.databaseBuilder(
+        context,
+        DictionaryDatabase::class.java,
+        name
+    ).build()
 }

@@ -7,11 +7,7 @@ import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
-import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.ExtractedTextRequest
-import android.view.inputmethod.InputConnection
-import android.view.inputmethod.InputMethodManager
-import android.view.inputmethod.InputMethodSubtype
+import android.view.inputmethod.*
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -20,7 +16,6 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.core.content.edit
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
-import androidx.room.Room
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import kotlinx.coroutines.*
 import kotlin.time.Duration.Companion.milliseconds
@@ -247,15 +242,16 @@ class WearKeyboardService : InputMethodService() {
         suggestionJob?.cancel()
 
         suggestionJob = serviceScope.launch(Dispatchers.IO) {
-            val database = createDictionaryDatabase(currentLayout)
+            val database = createDictionaryDatabase(currentLayout, applicationContext)
 
             try {
-                val exact = database.dictionaryDao().getExactSuggestion(t9)
-                val result = database.dictionaryDao().getSuggestions(t9).map { it.word }
+                val exactMatches = database.dictionaryDao().getExactSuggestions(t9)
+                val prefixMatches = database.dictionaryDao().getPrefixSuggestions(t9)
+                val result = (exactMatches + prefixMatches).map { it.word }
 
                 withContext(Dispatchers.Main) {
                     val connection = currentInputConnection ?: return@withContext
-                    val word = exact?.word ?: firstCharacter.toString()
+                    val word = exactMatches.firstOrNull()?.word ?: firstCharacter.toString()
 
                     val newWord = when {
                         keyboardState.capsLock -> {
@@ -363,7 +359,7 @@ class WearKeyboardService : InputMethodService() {
 
         updateText()
 
-        if (!isT9Enabled()) {
+        if (manualMode || !isT9Enabled()) {
             suggestions = emptyList()
             return
         }
@@ -385,12 +381,12 @@ class WearKeyboardService : InputMethodService() {
         suggestionJob?.cancel()
 
         suggestionJob = serviceScope.launch(Dispatchers.IO) {
-            val database = createDictionaryDatabase(currentLayout)
+            val database = createDictionaryDatabase(currentLayout, applicationContext)
 
             try {
-                val result = database.dictionaryDao()
-                    .getSuggestions(t9)
-                    .map { it.word }
+                val exactMatches = database.dictionaryDao().getExactSuggestions(t9)
+                val prefixMatches = database.dictionaryDao().getPrefixSuggestions(t9)
+                val result = (exactMatches + prefixMatches).map { it.word }
 
                 withContext(Dispatchers.Main) {
                     suggestions = result
@@ -560,7 +556,7 @@ class WearKeyboardService : InputMethodService() {
         }
 
         serviceScope.launch(Dispatchers.IO) {
-            val database = createDictionaryDatabase(currentLayout)
+            val database = createDictionaryDatabase(currentLayout, applicationContext)
 
             try {
                 database.dictionaryDao().insertOrIncrement(
@@ -630,7 +626,7 @@ class WearKeyboardService : InputMethodService() {
         }
 
         serviceScope.launch(Dispatchers.IO) {
-            val database = createDictionaryDatabase(currentLayout)
+            val database = createDictionaryDatabase(currentLayout, applicationContext)
 
             try {
                 database.dictionaryDao().incrementFrequency(word)
@@ -640,19 +636,6 @@ class WearKeyboardService : InputMethodService() {
         }
 
         updateText()
-    }
-
-    private fun createDictionaryDatabase(language: KeyboardLayout): DictionaryDatabase {
-        val name = when (language) {
-            KeyboardLayout.ENGLISH -> "en.db"
-            KeyboardLayout.UKRAINIAN -> "uk.db"
-        }
-
-        return Room.databaseBuilder(
-            applicationContext,
-            DictionaryDatabase::class.java,
-            name
-        ).build()
     }
 
     private fun wordToT9(word: String): String {

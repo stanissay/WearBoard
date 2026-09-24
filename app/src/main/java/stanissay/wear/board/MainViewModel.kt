@@ -2,14 +2,13 @@ package stanissay.wear.board
 
 import android.app.Application
 import android.content.Context
-import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.application
 import androidx.lifecycle.viewModelScope
-import androidx.room.Room
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +30,13 @@ class MainViewModel (app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 setDictionaryStatus(language, DictionaryStatus.DOWNLOADING)
+
+                val dbName = when (language) {
+                    KeyboardLayout.ENGLISH -> "en.db"
+                    KeyboardLayout.UKRAINIAN -> "uk.db"
+                }
+
+                application.deleteDatabase(dbName)
 
                 val url = when (language) {
                     KeyboardLayout.ENGLISH -> MainConstants.EN_DIC
@@ -73,55 +79,11 @@ class MainViewModel (app: Application) : AndroidViewModel(app) {
 
                 importDictionary(language)
 
-                val database = createDatabase(language)
-
-                try {
-                    val dao = database.dictionaryDao()
-
-                    val count = dao.count()
-                    val first = dao.getFirstWords()
-                    val last = dao.getLastWords()
-
-                    Log.d("Dictionary", "Language: $language")
-                    Log.d("Dictionary", "Total words: $count")
-
-                    Log.d("Dictionary", "First 5:")
-                    first.forEach {
-                        Log.d(
-                            "Dictionary",
-                            "${it.word} | ${it.t9} | ${it.frequency}"
-                        )
-                    }
-
-                    Log.d("Dictionary", "Last 5:")
-                    last.reversed().forEach {
-                        Log.d(
-                            "Dictionary",
-                            "${it.word} | ${it.t9} | ${it.frequency}"
-                        )
-                    }
-                } finally {
-                    database.close()
-                }
-
                 setDictionaryStatus(language, DictionaryStatus.LOADED)
             } catch (_: Exception) {
                 setDictionaryStatus(language, DictionaryStatus.ERROR)
             }
         }
-    }
-
-    private fun createDatabase(language: KeyboardLayout): DictionaryDatabase {
-        val name = when (language) {
-            KeyboardLayout.ENGLISH -> "en.db"
-            KeyboardLayout.UKRAINIAN -> "uk.db"
-        }
-
-        return Room.databaseBuilder(
-            getApplication(),
-            DictionaryDatabase::class.java,
-            name
-        ).build()
     }
 
     private fun unzip(zipFile: File, csvFile: File) {
@@ -144,8 +106,6 @@ class MainViewModel (app: Application) : AndroidViewModel(app) {
     }
 
     private fun importDictionary(language: KeyboardLayout) {
-        val app = getApplication<Application>()
-
         val zipName = when (language) {
             KeyboardLayout.ENGLISH -> "en-utf8.zip"
             KeyboardLayout.UKRAINIAN -> "uk-utf8.zip"
@@ -156,8 +116,8 @@ class MainViewModel (app: Application) : AndroidViewModel(app) {
             KeyboardLayout.UKRAINIAN -> "uk-utf8.csv"
         }
 
-        val zipFile = File(app.filesDir, zipName)
-        val csvFile = File(app.filesDir, csvName)
+        val zipFile = File(application.filesDir, zipName)
+        val csvFile = File(application.filesDir, csvName)
 
         unzip(zipFile, csvFile)
 
@@ -168,7 +128,7 @@ class MainViewModel (app: Application) : AndroidViewModel(app) {
             }
         )
 
-        val database = createDatabase(language)
+        val database = createDictionaryDatabase(language, application)
 
         try {
             database.runInTransaction {

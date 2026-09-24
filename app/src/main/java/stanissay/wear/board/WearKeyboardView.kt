@@ -264,8 +264,7 @@ fun FunctionKeys(
     Row(
         modifier = modifier.fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
+        verticalAlignment = Alignment.CenterVertically
     ) {
         keyboard.forEach { keys ->
             keys.forEach { key ->
