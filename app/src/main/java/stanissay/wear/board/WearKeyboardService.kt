@@ -169,7 +169,7 @@ class WearKeyboardService : InputMethodService() {
 
                 when (keyAction.key.type) {
                     KeyType.T9 -> {
-                        if (!isT9Enabled()) {
+                        if (!isT9Enabled() || !keyAction.key.characters.any { it.isLetter() }) {
                             val now = System.currentTimeMillis()
                             val sameKey = keyAction.key == lastT9Key
                             val sequenceActive = sameKey && now - lastT9PressTime <= MainConstants.MULTI_TAP_THRESHOLD
