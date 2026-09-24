@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
@@ -19,6 +20,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.material.MaterialTheme
+import androidx.wear.compose.material.Switch
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 
 class MainActivity : ComponentActivity() {
@@ -93,6 +95,24 @@ fun MainScreen(viewModel: MainViewModel) {
             }
         }
         item {
+            MainCard(
+                transformationSpec = transformationSpec,
+                contentPadding = MainConstants.NULL_PADDING
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    MainText(text = stringResource(R.string.use_t9))
+                    Switch(
+                        checked = viewModel.useT9,
+                        onCheckedChange = viewModel::updateUseT9
+                    )
+                }
+            }
+        }
+        item {
             Box(
                 modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE)
                     .then(transformedItem(transformationSpec)),
@@ -114,6 +134,8 @@ fun DictionariesScreen(viewModel: MainViewModel) {
     val transformationSpec = rememberTransformationSpec()
     val dictionaryStatus by viewModel.dictionaryStatus.collectAsState()
 
+    BackHandler { viewModel.showDictionaries = false }
+
     TransformingLazyColumn(
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.colors.background),
@@ -131,7 +153,9 @@ fun DictionariesScreen(viewModel: MainViewModel) {
         item {
             MainCard(
                 transformationSpec = transformationSpec,
-                contentPadding = MainConstants.NULL_PADDING
+                contentPadding = MainConstants.NULL_PADDING,
+                borderColor = MaterialTheme.colors.surface,
+                containerColor = MainColors.TRANSPARENT
             ) {
                 ClickableBox(
                     modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE),
@@ -143,7 +167,7 @@ fun DictionariesScreen(viewModel: MainViewModel) {
                 ) {
                     Column(
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.SpaceAround,
+                        verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         MainText(text = stringResource(R.string.keyboard_english))
@@ -159,6 +183,15 @@ fun DictionariesScreen(viewModel: MainViewModel) {
                         )
                     }
                 }
+            }
+        }
+        item {
+            MainCard(
+                transformationSpec = transformationSpec,
+                contentPadding = MainConstants.NULL_PADDING,
+                borderColor = MaterialTheme.colors.surface,
+                containerColor = MainColors.TRANSPARENT
+            ) {
                 ClickableBox(
                     modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE),
                     onClick = {
@@ -169,7 +202,7 @@ fun DictionariesScreen(viewModel: MainViewModel) {
                 ) {
                     Column(
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.SpaceAround,
+                        verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         MainText(text = stringResource(R.string.keyboard_ukrainian))

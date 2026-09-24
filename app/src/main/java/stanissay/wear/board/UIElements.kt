@@ -48,42 +48,6 @@ fun MainTheme(content: @Composable () -> Unit) {
 }
 
 @Composable
-fun MainCard(
-    modifier: Modifier = Modifier,
-    containerColor: Color = MaterialTheme.colors.surface,
-    borderColor: Color = MainColors.TRANSPARENT,
-    contentPadding: Dp = MainConstants.MAIN_PADDING,
-    containerPadding: Dp = MainConstants.MAIN_PADDING,
-    shape: Shape = ShapesStyle.medium,
-    content: @Composable () -> Unit
-) {
-    Box(
-        modifier = modifier
-            .padding(containerPadding)
-            .shadow(
-                elevation = MainConstants.ELEVATION,
-                shape = shape
-            )
-            .clip(shape)
-            .background(containerColor)
-            .border(
-                width = MainConstants.THICKNESS,
-                color = borderColor,
-                shape = shape
-            )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MainColors.TRANSPARENT)
-                .padding(contentPadding)
-        ) {
-            content()
-        }
-    }
-}
-
-@Composable
 fun TransformingLazyColumnItemScope.MainCard(
     transformationSpec: TransformationSpec,
     modifier: Modifier = Modifier,

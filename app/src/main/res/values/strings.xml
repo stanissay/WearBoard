@@ -11,4 +11,5 @@
     <string name="dictionary_importing">Importing…</string>
     <string name="dictionary_loaded">Loaded</string>
     <string name="dictionary_error">Error</string>
+    <string name="use_t9">Use T9</string>
 </resources>

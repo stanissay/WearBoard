@@ -169,39 +169,46 @@ class WearKeyboardService : InputMethodService() {
 
                 when (keyAction.key.type) {
                     KeyType.T9 -> {
-                        val now = System.currentTimeMillis()
-                        val sameKey = keyAction.key == lastT9Key
-                        val sequenceActive = sameKey && now - lastT9PressTime <= MainConstants.MULTI_TAP_THRESHOLD
+                        if (!isT9Enabled()) {
+                            val now = System.currentTimeMillis()
+                            val sameKey = keyAction.key == lastT9Key
+                            val sequenceActive = sameKey && now - lastT9PressTime <= MainConstants.MULTI_TAP_THRESHOLD
 
-                        if (!sequenceActive && lastT9Key != null && !keyboardState.capsLock) {
-                            keyboardState = keyboardState.copy(shift = false)
-                        }
-
-                        if (keyAction.isMultiTap) {
-                            connection.deleteSurroundingText(1, 0)
-                        }
-
-                        val uppercase = keyboardState.shift || keyboardState.capsLock
-
-                        val character =
-                            if (uppercase) { keyAction.character.uppercaseChar()
-                            } else { keyAction.character.lowercaseChar() }
-
-                        connection.commitText(character.toString(), 1)
-
-                        lastT9Key = keyAction.key
-                        lastT9PressTime = now
-                        t9TimeoutJob?.cancel()
-
-                        t9TimeoutJob = serviceScope.launch {
-                            delay(MainConstants.MULTI_TAP_THRESHOLD.milliseconds)
-
-                            if (lastT9Key == keyAction.key && !keyboardState.capsLock) {
+                            if (!sequenceActive && lastT9Key != null && !keyboardState.capsLock) {
                                 keyboardState = keyboardState.copy(shift = false)
                             }
 
-                            lastT9Key = null
-                            lastT9PressTime = 0L
+                            if (keyAction.isMultiTap) {
+                                connection.deleteSurroundingText(1, 0)
+                            }
+
+                            val uppercase = keyboardState.shift || keyboardState.capsLock
+
+                            val character =
+                                if (uppercase) {
+                                    keyAction.character.uppercaseChar()
+                                } else {
+                                    keyAction.character.lowercaseChar()
+                                }
+
+                            connection.commitText(character.toString(), 1)
+
+                            lastT9Key = keyAction.key
+                            lastT9PressTime = now
+                            t9TimeoutJob?.cancel()
+
+                            t9TimeoutJob = serviceScope.launch {
+                                delay(MainConstants.MULTI_TAP_THRESHOLD.milliseconds)
+
+                                if (lastT9Key == keyAction.key && !keyboardState.capsLock) {
+                                    keyboardState = keyboardState.copy(shift = false)
+                                }
+
+                                lastT9Key = null
+                                lastT9PressTime = 0L
+                            }
+                        } else {
+                            return
                         }
                     }
 
@@ -380,5 +387,10 @@ class WearKeyboardService : InputMethodService() {
 
             updateText()
         }
+    }
+
+    private fun isT9Enabled(): Boolean {
+        return getSharedPreferences(MainConstants.PREFS, MODE_PRIVATE)
+            .getBoolean(MainConstants.USE_T9, true)
     }
 }

@@ -1,10 +1,12 @@
 package stanissay.wear.board
 
 import android.app.Application
+import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.Room
@@ -258,6 +260,60 @@ class MainViewModel (app: Application) : AndroidViewModel(app) {
         _dictionaryStatus.update {
             it + (language to status)
         }
+    }
+
+    fun addWordToDictionary(language: KeyboardLayout, word: String) {
+        val cleanWord = word.trim()
+        if (cleanWord.isEmpty()) return
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val t9Map = createT9Map(
+                when (language) {
+                    KeyboardLayout.ENGLISH ->
+                        KeyboardLayouts.english
+
+                    KeyboardLayout.UKRAINIAN ->
+                        KeyboardLayouts.ukrainian
+                }
+            )
+
+            val t9 = wordToT9(cleanWord, t9Map)
+            if (t9.isEmpty()) return@launch
+
+            val database = createDatabase(language)
+
+            try {
+                database.dictionaryDao().insert(
+                    DictionaryWord(
+                        word = cleanWord,
+                        t9 = t9,
+                        frequency = 1
+                    )
+                )
+            } finally {
+                database.close()
+            }
+        }
+    }
+
+    var useT9 by mutableStateOf(
+        getApplication<Application>()
+            .getSharedPreferences(MainConstants.PREFS, Context.MODE_PRIVATE)
+            .getBoolean(MainConstants.USE_T9, true)
+    )
+        private set
+
+    fun updateUseT9(value: Boolean) {
+        useT9 = value
+
+        getApplication<Application>()
+            .getSharedPreferences(
+                MainConstants.PREFS,
+                Context.MODE_PRIVATE
+            )
+            .edit {
+                putBoolean(MainConstants.USE_T9, value)
+            }
     }
 
     init {

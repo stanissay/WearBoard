@@ -8,4 +8,5 @@
     <string name="dictionary_importing">Імпорт…</string>
     <string name="dictionary_loaded">Встановлено</string>
     <string name="dictionary_error">Помилка</string>
+    <string name="use_t9">Використовувати T9</string>
 </resources>

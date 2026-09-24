@@ -32,6 +32,7 @@ import androidx.wear.compose.material3.lazy.TransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 
 object MainConstants {
+    const val USE_T9 = "use_t9"
     const val PREFS = "voice_debug"
     const val RESULT_TEXT = "result_text"
     const val EXTRA_LANGUAGE = "voice_language"

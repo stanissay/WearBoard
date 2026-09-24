@@ -37,6 +37,9 @@ interface DictionaryDao {
 
     @Query("SELECT * FROM words ORDER BY id DESC LIMIT 5")
     fun getLastWords(): List<DictionaryWord>
+
+    @Insert
+    fun insert(word: DictionaryWord)
 }
 
 @Database(
