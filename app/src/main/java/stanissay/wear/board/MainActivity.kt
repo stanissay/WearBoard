@@ -159,11 +159,7 @@ fun DictionariesScreen(viewModel: MainViewModel) {
             ) {
                 ClickableBox(
                     modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE),
-                    onClick = {
-                        if(dictionaryStatus[KeyboardLayout.ENGLISH] == DictionaryStatus.NOT_LOADED) {
-                            viewModel.downloadDictionary(KeyboardLayout.ENGLISH)
-                        }
-                    }
+                    onClick = { viewModel.downloadDictionary(KeyboardLayout.ENGLISH) }
                 ) {
                     Column(
                         modifier = Modifier.fillMaxSize(),
@@ -194,11 +190,7 @@ fun DictionariesScreen(viewModel: MainViewModel) {
             ) {
                 ClickableBox(
                     modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE),
-                    onClick = {
-                        if(dictionaryStatus[KeyboardLayout.UKRAINIAN] == DictionaryStatus.NOT_LOADED) {
-                            viewModel.downloadDictionary(KeyboardLayout.UKRAINIAN)
-                        }
-                    }
+                    onClick = { viewModel.downloadDictionary(KeyboardLayout.UKRAINIAN) }
                 ) {
                     Column(
                         modifier = Modifier.fillMaxSize(),

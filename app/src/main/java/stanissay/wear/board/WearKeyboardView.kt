@@ -298,11 +298,11 @@ fun SuggestionRow(
         modifier = modifier.fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
+        horizontalArrangement = Arrangement.spacedBy(MainConstants.MAIN_PADDING)
     ) {
         suggestions.forEach { suggestion ->
             ClickableBox(
-                modifier = Modifier.size(MainConstants.BUTTON_SIZE),
+                modifier = Modifier.height(MainConstants.BUTTON_SIZE),
                 onClick = { onClick(suggestion) }
             ) { MainText(text = suggestion) }
         }

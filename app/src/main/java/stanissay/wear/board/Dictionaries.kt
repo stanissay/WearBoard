@@ -35,12 +35,18 @@ interface DictionaryDao {
     @Query("""
     SELECT * FROM words
     WHERE t9 LIKE :t9 || '%'
-    ORDER BY
-        CASE WHEN t9 = :t9 THEN 0 ELSE 1 END,
-        frequency DESC
+    ORDER BY frequency DESC
     LIMIT 5
 """)
     fun getSuggestions(t9: String): List<DictionaryWord>
+
+    @Query("""
+    SELECT * FROM words
+    WHERE t9 = :t9
+    ORDER BY frequency DESC
+    LIMIT 1
+""")
+    fun getExactSuggestion(t9: String): DictionaryWord?
 
     @Query("SELECT COUNT(*) FROM words")
     fun count(): Int

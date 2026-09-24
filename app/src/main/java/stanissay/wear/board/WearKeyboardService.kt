@@ -31,6 +31,8 @@ class WearKeyboardService : InputMethodService() {
     private var t9TimeoutJob: Job? = null
     private var currentLayout by mutableStateOf(KeyboardLayout.ENGLISH)
     private var currentText by mutableStateOf("")
+    private var currentT9Sequence = ""
+    private var currentT9Word = ""
     private var suggestions by mutableStateOf<List<String>>(emptyList())
     private var cursorPosition by mutableIntStateOf(0)
     private var keyboardState by mutableStateOf(KeyboardState())
@@ -211,7 +213,7 @@ class WearKeyboardService : InputMethodService() {
                                 lastT9PressTime = 0L
                             }
                         } else {
-                            updateSuggestions(keyAction.key)
+                            handleT9Input(keyAction.key)
                         }
                     }
 
@@ -397,21 +399,11 @@ class WearKeyboardService : InputMethodService() {
             .getBoolean(MainConstants.USE_T9, true)
     }
 
-    private fun getCurrentWord(): String {
-        val text = currentText
-        val cursor = cursorPosition.coerceIn(0, text.length)
-        var start = cursor
+    private fun handleT9Input(key: Key) {
+        currentT9Sequence += key.code
 
-        while (start > 0 && text[start - 1].isLetter()) {
-            start--
-        }
-
-        return text.substring(start, cursor)
-    }
-
-    private fun updateSuggestions(key: Key) {
-        val currentWord = getCurrentWord()
-        val t9 = wordToT9(currentWord) + key.code
+        val sequence = currentT9Sequence
+        val firstCharacter = key.characters.firstOrNull() ?: return
 
         suggestionJob?.cancel()
 
@@ -419,12 +411,31 @@ class WearKeyboardService : InputMethodService() {
             val database = createDictionaryDatabase(currentLayout)
 
             try {
-                val result = database.dictionaryDao()
-                    .getSuggestions(t9)
-                    .map { it.word }
+                val exact = database.dictionaryDao().getExactSuggestion(sequence)
+                val result = database.dictionaryDao().getSuggestions(sequence)
 
                 withContext(Dispatchers.Main) {
-                    suggestions = result
+                    if (sequence != currentT9Sequence) {
+                        return@withContext
+                    }
+
+                    val newWord = exact?.word ?: firstCharacter.toString()
+
+                    val connection = currentInputConnection ?: return@withContext
+
+                    if (currentT9Word.isNotEmpty()) {
+                        connection.deleteSurroundingText(
+                            currentT9Word.length,
+                            0
+                        )
+                    }
+
+                    connection.commitText(newWord, 1)
+
+                    currentT9Word = newWord
+                    suggestions = result.map { it.word }
+
+                    updateText()
                 }
             } finally {
                 database.close()
@@ -445,30 +456,5 @@ class WearKeyboardService : InputMethodService() {
             DictionaryDatabase::class.java,
             name
         ).build()
-    }
-
-    private fun wordToT9(word: String): String {
-        val layout = when (currentLayout) {
-            KeyboardLayout.ENGLISH -> KeyboardLayouts.english
-            KeyboardLayout.UKRAINIAN -> KeyboardLayouts.ukrainian
-        }
-
-        val t9Map = layout
-            .flatten()
-            .filter { it.type == KeyType.T9 }
-            .flatMap { key ->
-                key.characters
-                    .filter { it.isLetter() }
-                    .map { it.lowercaseChar() to key.code.first() }
-            }
-            .toMap()
-
-        return buildString(word.length) {
-            for (character in word) {
-                val digit = t9Map[character.lowercaseChar()]
-                    ?: return ""
-                append(digit)
-            }
-        }
     }
 }
