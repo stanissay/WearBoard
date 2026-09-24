@@ -32,8 +32,6 @@ class WearKeyboardService : InputMethodService() {
     private var t9TimeoutJob: Job? = null
     private var currentLayout by mutableStateOf(KeyboardLayout.ENGLISH)
     private var currentText by mutableStateOf("")
-    private var currentT9Sequence = ""
-    private var currentT9Word = ""
     private var suggestions by mutableStateOf<List<String>>(emptyList())
     private var cursorPosition by mutableIntStateOf(0)
     private var keyboardState by mutableStateOf(KeyboardState())
@@ -197,17 +195,12 @@ class WearKeyboardService : InputMethodService() {
     private fun handleMultiTap(action: KeyAction.Character, connection: InputConnection) {
         val now = System.currentTimeMillis()
         val sameKey = action.key == lastT9Key
-
-        val sequenceActive =
-            sameKey &&
-                    now - lastT9PressTime <= MainConstants.MULTI_TAP_THRESHOLD
+        val sequenceActive = sameKey && now - lastT9PressTime <= MainConstants.MULTI_TAP_THRESHOLD
 
         if (!sequenceActive &&
             lastT9Key != null &&
             !keyboardState.capsLock
-        ) {
-            keyboardState = keyboardState.copy(shift = false)
-        }
+        ) { keyboardState = keyboardState.copy(shift = false) }
 
         if (action.isMultiTap) {
             connection.deleteSurroundingText(1, 0)
@@ -215,18 +208,14 @@ class WearKeyboardService : InputMethodService() {
 
         val uppercase = keyboardState.shift || keyboardState.capsLock
 
-        val character =
-            if (uppercase) {
-                action.character.uppercaseChar()
-            } else {
-                action.character.lowercaseChar()
-            }
+        val character = if (uppercase) {
+            action.character.uppercaseChar()
+        } else { action.character.lowercaseChar() }
 
         connection.commitText(character.toString(), 1)
 
         lastT9Key = action.key
         lastT9PressTime = now
-
         t9TimeoutJob?.cancel()
 
         t9TimeoutJob = serviceScope.launch {
@@ -239,11 +228,14 @@ class WearKeyboardService : InputMethodService() {
             lastT9Key = null
             lastT9PressTime = 0L
         }
+
+        suggestions = emptyList()
     }
 
     private fun handleT9Input(key: Key) {
         val currentWord = getCurrentWord()
         val t9 = wordToT9(currentWord) + key.code
+        val firstCharacter = key.characters.firstOrNull() ?: return
 
         suggestionJob?.cancel()
 
@@ -251,12 +243,48 @@ class WearKeyboardService : InputMethodService() {
             val database = createDictionaryDatabase(currentLayout)
 
             try {
-                val result = database.dictionaryDao()
-                    .getSuggestions(t9)
-                    .map { it.word }
+                val exact = database.dictionaryDao().getExactSuggestion(t9)
+                val result = database.dictionaryDao().getSuggestions(t9).map { it.word }
 
                 withContext(Dispatchers.Main) {
+                    val connection = currentInputConnection ?: return@withContext
+                    val word = exact?.word ?: firstCharacter.toString()
+
+                    val newWord = when {
+                        keyboardState.capsLock -> {
+                            word.uppercase()
+                        }
+
+                        keyboardState.shift -> {
+                            word.replaceFirstChar {
+                                it.uppercase()
+                            }
+                        }
+
+                        currentWord.firstOrNull()?.isUpperCase() == true -> {
+                            word.replaceFirstChar {
+                                it.uppercase()
+                            }
+                        }
+
+                        else -> {
+                            word
+                        }
+                    }
+
+                    if (currentWord.isNotEmpty()) {
+                        connection.deleteSurroundingText(currentWord.length, 0)
+                    }
+
+                    connection.commitText(newWord, 1)
+
                     suggestions = result
+
+                    if (keyboardState.shift && !keyboardState.capsLock) {
+                        keyboardState = keyboardState.copy(shift = false)
+                    }
+
+                    updateText()
                 }
             } finally {
                 database.close()
@@ -271,6 +299,7 @@ class WearKeyboardService : InputMethodService() {
             KeyType.T9,
             KeyType.NORMAL -> {
                 connection.commitText(action.key.code, 1)
+                suggestions = emptyList()
             }
 
             KeyType.FUNCTION -> Unit
@@ -318,14 +347,52 @@ class WearKeyboardService : InputMethodService() {
     }
 
     private fun handleDelete() {
-        currentInputConnection?.deleteSurroundingText(1, 0)
+        val connection = currentInputConnection ?: return
+
+        connection.deleteSurroundingText(1, 0)
+
+        updateText()
+
+        if (!isT9Enabled()) {
+            suggestions = emptyList()
+            return
+        }
+
+        val currentWord = getCurrentWord()
+
+        if (currentWord.isEmpty()) {
+            suggestions = emptyList()
+            return
+        }
+
+        val t9 = wordToT9(currentWord)
+
+        if (t9.isEmpty()) {
+            suggestions = emptyList()
+            return
+        }
+
+        suggestionJob?.cancel()
+
+        suggestionJob = serviceScope.launch(Dispatchers.IO) {
+            val database = createDictionaryDatabase(currentLayout)
+
+            try {
+                val result = database.dictionaryDao()
+                    .getSuggestions(t9)
+                    .map { it.word }
+
+                withContext(Dispatchers.Main) {
+                    suggestions = result
+                }
+            } finally {
+                database.close()
+            }
+        }
     }
 
     private fun handleSpace() {
         currentInputConnection?.commitText(" ", 1)
-
-        currentT9Sequence = ""
-        currentT9Word = ""
         suggestions = emptyList()
 
         if (!keyboardState.capsLock) {
@@ -516,156 +583,3 @@ class WearKeyboardService : InputMethodService() {
         }
     }
 }
-
-//    @SuppressLint("WearRecents")
-//    private fun handleKey(keyAction: KeyAction) {
-//        val connection = currentInputConnection ?: return
-//
-//        when (keyAction) {
-//            is KeyAction.Character -> {
-//                val uppercase = keyboardState.shift || keyboardState.capsLock
-//
-//                when (keyAction.key.type) {
-//                    KeyType.T9 -> {
-//                        if (!isT9Enabled() || !keyAction.key.characters.any { it.isLetter() }) {
-//                            val now = System.currentTimeMillis()
-//                            val sameKey = keyAction.key == lastT9Key
-//                            val sequenceActive = sameKey && now - lastT9PressTime <= MainConstants.MULTI_TAP_THRESHOLD
-//
-//                            if (!sequenceActive && lastT9Key != null && !keyboardState.capsLock) {
-//                                keyboardState = keyboardState.copy(shift = false)
-//                            }
-//
-//                            if (keyAction.isMultiTap) {
-//                                connection.deleteSurroundingText(1, 0)
-//                            }
-//
-//                            val uppercase = keyboardState.shift || keyboardState.capsLock
-//
-//                            val character =
-//                                if (uppercase) {
-//                                    keyAction.character.uppercaseChar()
-//                                } else {
-//                                    keyAction.character.lowercaseChar()
-//                                }
-//
-//                            connection.commitText(character.toString(), 1)
-//
-//                            lastT9Key = keyAction.key
-//                            lastT9PressTime = now
-//                            t9TimeoutJob?.cancel()
-//
-//                            t9TimeoutJob = serviceScope.launch {
-//                                delay(MainConstants.MULTI_TAP_THRESHOLD.milliseconds)
-//
-//                                if (lastT9Key == keyAction.key && !keyboardState.capsLock) {
-//                                    keyboardState = keyboardState.copy(shift = false)
-//                                }
-//
-//                                lastT9Key = null
-//                                lastT9PressTime = 0L
-//                            }
-//                        } else {
-//                            updateSuggestions(keyAction.key)
-//                        }
-//                    }
-//
-//                    KeyType.NORMAL -> {
-//                        val character =
-//                            if (uppercase) { keyAction.character.uppercaseChar()
-//                            } else { keyAction.character.lowercaseChar() }
-//
-//                        connection.commitText(character.toString(), 1)
-//                    }
-//
-//                    KeyType.FUNCTION -> {
-//                        when (keyAction.key.code) {
-//                            MainFunctions.DELETE -> {
-//                                connection.deleteSurroundingText(1, 0)
-//                            }
-//
-//                            MainFunctions.SPACE -> {
-//                                connection.commitText(" ", 1)
-//
-//                                if (!keyboardState.capsLock) {
-//                                    keyboardState = keyboardState.copy(shift = false)
-//                                }
-//                            }
-//                        }
-//                    }
-//                }
-//            }
-//
-//            is KeyAction.LongPress -> {
-//                when (keyAction.key.type) {
-//                    KeyType.T9, KeyType.NORMAL -> {
-//                        connection.commitText(keyAction.key.code, 1)
-//                    }
-//
-//                    KeyType.FUNCTION -> Unit
-//                }
-//            }
-//
-//            is KeyAction.Function -> {
-//                when (keyAction.key.code) {
-//                    MainFunctions.DELETE -> {
-//                        connection.deleteSurroundingText(1, 0)
-//                    }
-//
-//                    MainFunctions.SPACE -> {
-//                        connection.commitText(" ", 1)
-//                    }
-//
-//                    MainFunctions.ENTER -> {
-//                        connection.sendKeyEvent(
-//                            KeyEvent(
-//                                KeyEvent.ACTION_DOWN,
-//                                KeyEvent.KEYCODE_ENTER
-//                            )
-//                        )
-//
-//                        connection.sendKeyEvent(
-//                            KeyEvent(
-//                                KeyEvent.ACTION_UP,
-//                                KeyEvent.KEYCODE_ENTER
-//                            )
-//                        )
-//                    }
-//
-//                    MainFunctions.SHIFT -> {
-//                        val now = System.currentTimeMillis()
-//
-//                        keyboardState = if (keyboardState.capsLock) {
-//                            keyboardState.copy(
-//                                shift = false,
-//                                capsLock = false
-//                            )
-//                        } else if (now - lastShiftPressTime <= MainConstants.DOUBLE_TAP_THRESHOLD) {
-//                            keyboardState.copy(
-//                                shift = false,
-//                                capsLock = true
-//                            )
-//                        } else {
-//                            keyboardState.copy(
-//                                shift = !keyboardState.shift
-//                            )
-//                        }
-//
-//                        lastShiftPressTime = now
-//                    }
-//
-//                    MainFunctions.VOICE -> { startVoiceInput() }
-//
-//                    MainFunctions.SETTINGS -> {
-//                        val intent = Intent(this, MainActivity::class.java).apply {
-//                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-//                        }
-//
-//                        startActivity(intent)
-//                    }
-//                }
-//            }
-//        }
-//
-//        updateText()
-//    }

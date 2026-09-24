@@ -193,7 +193,7 @@ object KeyboardLayouts {
             Key(
                 code = "7",
                 characters = listOf('p', 'q', 'r', 's', '7'),
-                secondaryLabel = "pqr",
+                secondaryLabel = "pqrs",
                 type = KeyType.T9
             ),
             Key(
