@@ -1,6 +1,7 @@
 package stanissay.wear.board
 
 import android.app.Application
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -8,6 +9,10 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.Room
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.BufferedInputStream
 import java.io.File
@@ -22,43 +27,84 @@ class MainViewModel (app: Application) : AndroidViewModel(app) {
 
     fun downloadDictionary(language: KeyboardLayout) {
         viewModelScope.launch(Dispatchers.IO) {
-            val url = when (language) {
-                KeyboardLayout.ENGLISH -> MainConstants.EN_DIC
-                KeyboardLayout.UKRAINIAN -> MainConstants.UK_DIC
-            }
-
-            val fileName = when (language) {
-                KeyboardLayout.ENGLISH -> "en-utf8.zip"
-                KeyboardLayout.UKRAINIAN -> "uk-utf8.zip"
-            }
-
-            val file = File(
-                getApplication<Application>().filesDir,
-                fileName
-            )
-
-            val connection = URL(url).openConnection() as HttpURLConnection
-
             try {
-                connection.connectTimeout = 15_000
-                connection.readTimeout = 60_000
-                connection.requestMethod = "GET"
+                setDictionaryStatus(language, DictionaryStatus.DOWNLOADING)
 
-                if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                    throw IOException(
-                        "HTTP ${connection.responseCode}"
-                    )
+                val url = when (language) {
+                    KeyboardLayout.ENGLISH -> MainConstants.EN_DIC
+                    KeyboardLayout.UKRAINIAN -> MainConstants.UK_DIC
                 }
 
-                connection.inputStream.use { input ->
-                    file.outputStream().use { output ->
-                        input.copyTo(output)
+                val fileName = when (language) {
+                    KeyboardLayout.ENGLISH -> "en-utf8.zip"
+                    KeyboardLayout.UKRAINIAN -> "uk-utf8.zip"
+                }
+
+                val file = File(
+                    getApplication<Application>().filesDir,
+                    fileName
+                )
+
+                val connection = URL(url).openConnection() as HttpURLConnection
+
+                try {
+                    connection.connectTimeout = 15_000
+                    connection.readTimeout = 60_000
+                    connection.requestMethod = "GET"
+
+                    if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                        throw IOException(
+                            "HTTP ${connection.responseCode}"
+                        )
                     }
+
+                    connection.inputStream.use { input ->
+                        file.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                } finally {
+                    connection.disconnect()
                 }
+
+                setDictionaryStatus(language, DictionaryStatus.IMPORTING)
 
                 importDictionary(language)
-            } finally {
-                connection.disconnect()
+
+                val database = createDatabase(language)
+
+                try {
+                    val dao = database.dictionaryDao()
+
+                    val count = dao.count()
+                    val first = dao.getFirstWords()
+                    val last = dao.getLastWords()
+
+                    Log.d("Dictionary", "Language: $language")
+                    Log.d("Dictionary", "Total words: $count")
+
+                    Log.d("Dictionary", "First 5:")
+                    first.forEach {
+                        Log.d(
+                            "Dictionary",
+                            "${it.word} | ${it.t9} | ${it.frequency}"
+                        )
+                    }
+
+                    Log.d("Dictionary", "Last 5:")
+                    last.reversed().forEach {
+                        Log.d(
+                            "Dictionary",
+                            "${it.word} | ${it.t9} | ${it.frequency}"
+                        )
+                    }
+                } finally {
+                    database.close()
+                }
+
+                setDictionaryStatus(language, DictionaryStatus.LOADED)
+            } catch (_: Exception) {
+                setDictionaryStatus(language, DictionaryStatus.ERROR)
             }
         }
     }
@@ -76,10 +122,7 @@ class MainViewModel (app: Application) : AndroidViewModel(app) {
         ).build()
     }
 
-    private fun unzip(
-        zipFile: File,
-        csvFile: File
-    ) {
+    private fun unzip(zipFile: File, csvFile: File) {
         ZipInputStream(
             BufferedInputStream(
                 FileInputStream(zipFile)
@@ -133,26 +176,13 @@ class MainViewModel (app: Application) : AndroidViewModel(app) {
                     reader.forEachLine { line ->
                         val parts = line.split('\t')
 
-                        val word = parts.firstOrNull()
-                            ?.removePrefix("'")
-                            ?.trim()
-                            ?: return@forEachLine
-
-                        if (word.isEmpty()) {
-                            return@forEachLine
-                        }
+                        val word = parts.firstOrNull()?.removePrefix("'")?.trim() ?: return@forEachLine
+                        if (word.isEmpty()) return@forEachLine
 
                         val t9 = wordToT9(word, t9Map)
+                        if (t9.isEmpty()) return@forEachLine
 
-                        if (t9.isEmpty()) {
-                            return@forEachLine
-                        }
-
-                        val frequency = parts
-                            .getOrNull(1)
-                            ?.trim()
-                            ?.toIntOrNull()
-                            ?: 10
+                        val frequency = parts.getOrNull(1)?.trim()?.toIntOrNull() ?: 10
 
                         batch += DictionaryWord(
                             word = word,
@@ -174,9 +204,7 @@ class MainViewModel (app: Application) : AndroidViewModel(app) {
 
             csvFile.delete()
             zipFile.delete()
-        } finally {
-            database.close()
-        }
+        } finally { database.close() }
     }
 
     private fun createT9Map(layout: List<List<Key>>): Map<Char, Char> {
@@ -193,10 +221,7 @@ class MainViewModel (app: Application) : AndroidViewModel(app) {
             .toMap()
     }
 
-    private fun wordToT9(
-        word: String,
-        t9Map: Map<Char, Char>
-    ): String {
+    private fun wordToT9(word: String, t9Map: Map<Char, Char>): String {
         return buildString(word.length) {
             for (character in word) {
                 val digit = t9Map[character.lowercaseChar()]
@@ -206,12 +231,36 @@ class MainViewModel (app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun isDictionaryLoaded(language: KeyboardLayout): Boolean {
-        val fileName = when (language) {
-            KeyboardLayout.ENGLISH -> "en.db"
-            KeyboardLayout.UKRAINIAN -> "uk.db"
-        }
+    private val _dictionaryStatus =
+        MutableStateFlow(
+            mapOf(
+                KeyboardLayout.ENGLISH to DictionaryStatus.NOT_LOADED,
+                KeyboardLayout.UKRAINIAN to DictionaryStatus.NOT_LOADED
+            )
+        )
+    val dictionaryStatus: StateFlow<Map<KeyboardLayout, DictionaryStatus>> = _dictionaryStatus.asStateFlow()
 
-        return getApplication<Application>().getDatabasePath(fileName).exists()
+    private fun checkDictionaries() {
+        val app = getApplication<Application>()
+
+        _dictionaryStatus.value = mapOf(
+            KeyboardLayout.ENGLISH to if (app.getDatabasePath("en.db").exists()) {
+                DictionaryStatus.LOADED
+            } else { DictionaryStatus.NOT_LOADED },
+
+            KeyboardLayout.UKRAINIAN to if (app.getDatabasePath("uk.db").exists()) {
+                DictionaryStatus.LOADED
+            } else { DictionaryStatus.NOT_LOADED }
+        )
+    }
+
+    private fun setDictionaryStatus(language: KeyboardLayout, status: DictionaryStatus) {
+        _dictionaryStatus.update {
+            it + (language to status)
+        }
+    }
+
+    init {
+        checkDictionaries()
     }
 }

@@ -6,4 +6,9 @@
     <string name="dictionaries">Dictionaries</string>
     <string name="version">Version </string>
     <string name="listen">Listen</string>
+    <string name="dictionary_download">Download</string>
+    <string name="dictionary_downloading">Downloading…</string>
+    <string name="dictionary_importing">Importing…</string>
+    <string name="dictionary_loaded">Loaded</string>
+    <string name="dictionary_error">Error</string>
 </resources>

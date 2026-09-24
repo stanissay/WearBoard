@@ -31,6 +31,12 @@ interface DictionaryDao {
 
     @Query("SELECT COUNT(*) FROM words")
     fun count(): Int
+
+    @Query("SELECT * FROM words ORDER BY id ASC LIMIT 5")
+    fun getFirstWords(): List<DictionaryWord>
+
+    @Query("SELECT * FROM words ORDER BY id DESC LIMIT 5")
+    fun getLastWords(): List<DictionaryWord>
 }
 
 @Database(

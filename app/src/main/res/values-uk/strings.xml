@@ -3,4 +3,9 @@
     <string name="dictionaries">Словники</string>
     <string name="version">Версія </string>
     <string name="listen">Слухаю</string>
+    <string name="dictionary_download">Завантажити</string>
+    <string name="dictionary_downloading">Завантаження…</string>
+    <string name="dictionary_importing">Імпорт…</string>
+    <string name="dictionary_loaded">Встановлено</string>
+    <string name="dictionary_error">Помилка</string>
 </resources>

@@ -297,6 +297,19 @@ fun SecondAccentText(
 }
 
 @Composable
+fun CaptureText(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    MainText(
+        text = text,
+        modifier = modifier,
+        style = MaterialTheme.typography.caption1,
+        color = MaterialTheme.colors.surface
+    )
+}
+
+@Composable
 fun TransformingLazyColumnItemScope.WearSpacer(transformationSpec: TransformationSpec) {
     Spacer(
         modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE)

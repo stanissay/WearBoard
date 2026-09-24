@@ -8,7 +8,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -109,6 +112,7 @@ fun MainScreen(viewModel: MainViewModel) {
 fun DictionariesScreen(viewModel: MainViewModel) {
     val state = rememberTransformingLazyColumnState()
     val transformationSpec = rememberTransformationSpec()
+    val dictionaryStatus by viewModel.dictionaryStatus.collectAsState()
 
     TransformingLazyColumn(
         modifier = Modifier.fillMaxSize()
@@ -132,26 +136,54 @@ fun DictionariesScreen(viewModel: MainViewModel) {
                 ClickableBox(
                     modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE),
                     onClick = {
-                        if(!viewModel.isDictionaryLoaded(KeyboardLayout.ENGLISH)) {
+                        if(dictionaryStatus[KeyboardLayout.ENGLISH] == DictionaryStatus.NOT_LOADED) {
                             viewModel.downloadDictionary(KeyboardLayout.ENGLISH)
                         }
                     }
                 ) {
-                    MainText(
-                        text = stringResource(R.string.keyboard_english)
-                    )
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.SpaceAround,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        MainText(text = stringResource(R.string.keyboard_english))
+                        CaptureText(
+                            text = when (dictionaryStatus[KeyboardLayout.ENGLISH]) {
+                                DictionaryStatus.NOT_LOADED -> stringResource(R.string.dictionary_download)
+                                DictionaryStatus.DOWNLOADING -> stringResource(R.string.dictionary_downloading)
+                                DictionaryStatus.IMPORTING -> stringResource(R.string.dictionary_importing)
+                                DictionaryStatus.LOADED -> stringResource(R.string.dictionary_loaded)
+                                DictionaryStatus.ERROR -> stringResource(R.string.dictionary_error)
+                                null -> ""
+                            }
+                        )
+                    }
                 }
                 ClickableBox(
                     modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE),
                     onClick = {
-                        if(!viewModel.isDictionaryLoaded(KeyboardLayout.UKRAINIAN)) {
+                        if(dictionaryStatus[KeyboardLayout.UKRAINIAN] == DictionaryStatus.NOT_LOADED) {
                             viewModel.downloadDictionary(KeyboardLayout.UKRAINIAN)
                         }
                     }
                 ) {
-                    MainText(
-                        text = stringResource(R.string.keyboard_ukrainian)
-                    )
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.SpaceAround,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        MainText(text = stringResource(R.string.keyboard_ukrainian))
+                        CaptureText(
+                            text = when (dictionaryStatus[KeyboardLayout.UKRAINIAN]) {
+                                DictionaryStatus.NOT_LOADED -> stringResource(R.string.dictionary_download)
+                                DictionaryStatus.DOWNLOADING -> stringResource(R.string.dictionary_downloading)
+                                DictionaryStatus.IMPORTING -> stringResource(R.string.dictionary_importing)
+                                DictionaryStatus.LOADED -> stringResource(R.string.dictionary_loaded)
+                                DictionaryStatus.ERROR -> stringResource(R.string.dictionary_error)
+                                null -> ""
+                            }
+                        )
+                    }
                 }
             }
         }

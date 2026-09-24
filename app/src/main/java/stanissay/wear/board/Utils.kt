@@ -84,7 +84,8 @@ object MainColors {
 val TypographyStyle = Typography(
     title1 = TextStyle(fontSize = 15.sp),
     body1 = TextStyle(fontSize = 13.sp),
-    body2 = TextStyle(fontSize = 11.sp)
+    body2 = TextStyle(fontSize = 11.sp),
+    caption1 = TextStyle(fontSize = 10.sp)
 )
 
 val ColorStyle = Colors(
@@ -100,6 +101,14 @@ val ShapesStyle = Shapes(
     medium = RoundedCornerShape(8.dp),
     large = RoundedCornerShape(16.dp),
 )
+
+enum class DictionaryStatus {
+    NOT_LOADED,
+    DOWNLOADING,
+    IMPORTING,
+    LOADED,
+    ERROR
+}
 
 data class Key(
     val code: String,
