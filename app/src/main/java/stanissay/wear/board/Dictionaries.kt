@@ -8,6 +8,7 @@ import androidx.room.Insert
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.RoomDatabase
+import androidx.room.Transaction
 
 @Entity(
     tableName = "words",
@@ -29,8 +30,33 @@ interface DictionaryDao {
     @Insert
     fun insertAll(words: List<DictionaryWord>)
 
+    @Query("""
+    SELECT * FROM words
+    WHERE word = :word
+    LIMIT 1
+""")
+    fun getWord(word: String): DictionaryWord?
+
     @Insert
     fun insert(word: DictionaryWord)
+
+    @Query("""
+    UPDATE words
+    SET frequency = frequency + 1
+    WHERE word = :word
+""")
+    fun incrementFrequency(word: String)
+
+    @Transaction
+    fun insertOrIncrement(word: DictionaryWord) {
+        val existing = getWord(word.word)
+
+        if (existing == null) {
+            insert(word)
+        } else {
+            incrementFrequency(word.word)
+        }
+    }
 
     @Query("""
     SELECT * FROM words

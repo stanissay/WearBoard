@@ -63,6 +63,8 @@ fun KeyboardScreen(
     cursorPosition: Int,
     keyboardState: KeyboardState,
     suggestions: List<String>,
+    manualMode: Boolean,
+    isT9Enabled: Boolean,
     onKeyAction: (KeyAction) -> Unit,
     onLongClick: () -> Unit,
     onSuggestionClick: (String) -> Unit,
@@ -168,6 +170,8 @@ fun KeyboardScreen(
                 keyboard = funKeyboard,
                 onKeyAction = onKeyAction,
                 keyboardState = keyboardState,
+                isT9Enabled = isT9Enabled,
+                manualMode = manualMode,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -253,6 +257,8 @@ fun FunctionKeys(
     keyboard: List<List<Key>>,
     onKeyAction: (KeyAction) -> Unit,
     keyboardState: KeyboardState,
+    manualMode: Boolean,
+    isT9Enabled: Boolean,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -263,6 +269,13 @@ fun FunctionKeys(
     ) {
         keyboard.forEach { keys ->
             keys.forEach { key ->
+                val visible = when (key.code) {
+                    MainFunctions.ABC -> isT9Enabled && !manualMode
+                    MainFunctions.ADD -> isT9Enabled && manualMode
+                    else -> true
+                }
+                if (!visible) return@forEach
+
                 ClickableBox(
                     modifier = Modifier.size(MainConstants.BUTTON_SIZE),
                     onClick = { onKeyAction(KeyAction.Function(key)) }

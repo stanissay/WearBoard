@@ -39,6 +39,7 @@ class WearKeyboardService : InputMethodService() {
     private var lastT9PressTime = 0L
     private var lastT9Key: Key? = null
     private var keyboardVisible = false
+    private var manualMode by mutableStateOf(false)
     private val keyboard: List<List<Key>>
         get() = if (keyboardState.symbolsMode) { KeyboardLayouts.symbols
         } else { KeyboardLayouts.layouts.getValue(currentLayout) }
@@ -86,9 +87,11 @@ class WearKeyboardService : InputMethodService() {
                         cursorPosition = cursorPosition,
                         keyboardState = keyboardState,
                         suggestions = suggestions,
+                        manualMode = manualMode,
+                        isT9Enabled = isT9Enabled(),
                         onKeyAction = ::handleKey,
                         onLongClick = ::showKeyboardPicker,
-                        onSuggestionClick = {},
+                        onSuggestionClick = { selectSuggestion(it) },
                         onLangChange = { changeLanguage() },
                         onCloseKeyboard = { requestHideSelf(0) },
                         onExtended = {
@@ -341,6 +344,8 @@ class WearKeyboardService : InputMethodService() {
             MainFunctions.SPACE -> handleSpace()
             MainFunctions.ENTER -> handleEnter()
             MainFunctions.SHIFT -> handleShift()
+            MainFunctions.ABC -> onAbc()
+            MainFunctions.ADD -> saveWord()
             MainFunctions.VOICE -> startVoiceInput()
             MainFunctions.SETTINGS -> openSettings()
         }
@@ -513,6 +518,60 @@ class WearKeyboardService : InputMethodService() {
         getSystemService(InputMethodManager::class.java).showInputMethodPicker()
     }
 
+    private fun onAbc() {
+        val connection = currentInputConnection ?: return
+        val currentWord = getCurrentWord()
+
+        if (currentWord.isNotEmpty()) {
+            connection.deleteSurroundingText(currentWord.length, 0)
+        }
+
+        suggestions = emptyList()
+        lastT9Key = null
+        lastT9PressTime = 0L
+        t9TimeoutJob?.cancel()
+        manualMode = true
+
+        updateText()
+    }
+
+    private fun saveWord() {
+        val word = getCurrentWord()
+
+        if (word.isEmpty()) {
+            manualMode = false
+            return
+        }
+
+        val t9 = wordToT9(word)
+
+        if (t9.isEmpty()) {
+            manualMode = false
+            return
+        }
+
+        serviceScope.launch(Dispatchers.IO) {
+            val database = createDictionaryDatabase(currentLayout)
+
+            try {
+                database.dictionaryDao().insertOrIncrement(
+                    DictionaryWord(
+                        word = word,
+                        t9 = t9,
+                        frequency = 1
+                    )
+                )
+            } finally {
+                database.close()
+            }
+
+            withContext(Dispatchers.Main) {
+                manualMode = false
+                suggestions = emptyList()
+            }
+        }
+    }
+
     private fun readVoiceResult() {
         val prefs = getSharedPreferences(MainConstants.PREFS, MODE_PRIVATE)
         val result = prefs.getString(MainConstants.RESULT_TEXT, null)
@@ -543,6 +602,35 @@ class WearKeyboardService : InputMethodService() {
         }
 
         return text.substring(start, cursor)
+    }
+
+    private fun selectSuggestion(word: String) {
+        val connection = currentInputConnection ?: return
+        val currentWord = getCurrentWord()
+
+        if (currentWord.isNotEmpty()) {
+            connection.deleteSurroundingText(currentWord.length, 0)
+        }
+
+        connection.commitText(word, 1)
+
+        suggestions = emptyList()
+
+        if (!keyboardState.capsLock) {
+            keyboardState = keyboardState.copy(shift = false)
+        }
+
+        serviceScope.launch(Dispatchers.IO) {
+            val database = createDictionaryDatabase(currentLayout)
+
+            try {
+                database.dictionaryDao().incrementFrequency(word)
+            } finally {
+                database.close()
+            }
+        }
+
+        updateText()
     }
 
     private fun createDictionaryDatabase(language: KeyboardLayout): DictionaryDatabase {

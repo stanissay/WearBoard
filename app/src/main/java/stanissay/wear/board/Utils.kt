@@ -69,6 +69,8 @@ object MainFunctions {
     const val SPACE = KeyEvent.KEYCODE_SPACE.toString()
     const val SHIFT = KeyEvent.KEYCODE_SHIFT_LEFT.toString()
     const val DELETE = KeyEvent.KEYCODE_DEL.toString()
+    const val ABC = "abc_mode"
+    const val ADD = "save"
     const val SETTINGS = "settings"
     const val VOICE = "voice"
 }
@@ -381,6 +383,14 @@ object KeyboardLayouts {
 
     val functions = listOf(
         listOf(
+            Key(
+                code = MainFunctions.ABC,
+                icon = R.drawable.abc
+            ),
+            Key(
+                code = MainFunctions.ADD,
+                icon = R.drawable.add
+            ),
             Key(
                 code = MainFunctions.SHIFT,
                 icon = R.drawable.shift
