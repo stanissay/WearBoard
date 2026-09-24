@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.core.content.edit
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.room.Room
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import kotlinx.coroutines.*
 import kotlin.time.Duration.Companion.milliseconds
@@ -26,9 +27,11 @@ import kotlin.time.Duration.Companion.milliseconds
 class WearKeyboardService : InputMethodService() {
     private lateinit var lifecycleOwner: ImeLifecycleOwner
     private val serviceScope = CoroutineScope(Job() + Dispatchers.Main)
+    private var suggestionJob: Job? = null
     private var t9TimeoutJob: Job? = null
     private var currentLayout by mutableStateOf(KeyboardLayout.ENGLISH)
     private var currentText by mutableStateOf("")
+    private var suggestions by mutableStateOf<List<String>>(emptyList())
     private var cursorPosition by mutableIntStateOf(0)
     private var keyboardState by mutableStateOf(KeyboardState())
     private var lastShiftPressTime = 0L
@@ -81,7 +84,7 @@ class WearKeyboardService : InputMethodService() {
                         text = currentText,
                         cursorPosition = cursorPosition,
                         keyboardState = keyboardState,
-                        suggestions = emptyList(),
+                        suggestions = suggestions,
                         onKeyAction = ::handleKey,
                         onLongClick = ::showKeyboardPicker,
                         onSuggestionClick = {},
@@ -208,7 +211,7 @@ class WearKeyboardService : InputMethodService() {
                                 lastT9PressTime = 0L
                             }
                         } else {
-                            return
+                            updateSuggestions(keyAction.key)
                         }
                     }
 
@@ -392,5 +395,80 @@ class WearKeyboardService : InputMethodService() {
     private fun isT9Enabled(): Boolean {
         return getSharedPreferences(MainConstants.PREFS, MODE_PRIVATE)
             .getBoolean(MainConstants.USE_T9, true)
+    }
+
+    private fun getCurrentWord(): String {
+        val text = currentText
+        val cursor = cursorPosition.coerceIn(0, text.length)
+        var start = cursor
+
+        while (start > 0 && text[start - 1].isLetter()) {
+            start--
+        }
+
+        return text.substring(start, cursor)
+    }
+
+    private fun updateSuggestions(key: Key) {
+        val currentWord = getCurrentWord()
+        val t9 = wordToT9(currentWord) + key.code
+
+        suggestionJob?.cancel()
+
+        suggestionJob = serviceScope.launch(Dispatchers.IO) {
+            val database = createDictionaryDatabase(currentLayout)
+
+            try {
+                val result = database.dictionaryDao()
+                    .getSuggestions(t9)
+                    .map { it.word }
+
+                withContext(Dispatchers.Main) {
+                    suggestions = result
+                }
+            } finally {
+                database.close()
+            }
+        }
+    }
+
+    private fun createDictionaryDatabase(
+        language: KeyboardLayout
+    ): DictionaryDatabase {
+        val name = when (language) {
+            KeyboardLayout.ENGLISH -> "en.db"
+            KeyboardLayout.UKRAINIAN -> "uk.db"
+        }
+
+        return Room.databaseBuilder(
+            applicationContext,
+            DictionaryDatabase::class.java,
+            name
+        ).build()
+    }
+
+    private fun wordToT9(word: String): String {
+        val layout = when (currentLayout) {
+            KeyboardLayout.ENGLISH -> KeyboardLayouts.english
+            KeyboardLayout.UKRAINIAN -> KeyboardLayouts.ukrainian
+        }
+
+        val t9Map = layout
+            .flatten()
+            .filter { it.type == KeyType.T9 }
+            .flatMap { key ->
+                key.characters
+                    .filter { it.isLetter() }
+                    .map { it.lowercaseChar() to key.code.first() }
+            }
+            .toMap()
+
+        return buildString(word.length) {
+            for (character in word) {
+                val digit = t9Map[character.lowercaseChar()]
+                    ?: return ""
+                append(digit)
+            }
+        }
     }
 }

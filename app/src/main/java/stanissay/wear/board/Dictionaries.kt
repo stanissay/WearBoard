@@ -29,6 +29,19 @@ interface DictionaryDao {
     @Insert
     fun insertAll(words: List<DictionaryWord>)
 
+    @Insert
+    fun insert(word: DictionaryWord)
+
+    @Query("""
+    SELECT * FROM words
+    WHERE t9 LIKE :t9 || '%'
+    ORDER BY
+        CASE WHEN t9 = :t9 THEN 0 ELSE 1 END,
+        frequency DESC
+    LIMIT 5
+""")
+    fun getSuggestions(t9: String): List<DictionaryWord>
+
     @Query("SELECT COUNT(*) FROM words")
     fun count(): Int
 
@@ -37,9 +50,6 @@ interface DictionaryDao {
 
     @Query("SELECT * FROM words ORDER BY id DESC LIMIT 5")
     fun getLastWords(): List<DictionaryWord>
-
-    @Insert
-    fun insert(word: DictionaryWord)
 }
 
 @Database(
