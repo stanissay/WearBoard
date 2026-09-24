@@ -187,12 +187,16 @@ class WearKeyboardService : InputMethodService() {
     }
 
     private fun handleT9Character(action: KeyAction.Character, connection: InputConnection) {
-        if (isT9Enabled() && action.key.characters.any { it.isLetter() }) {
+        if (isT9Enabled() && !manualMode && action.key.characters.any { it.isLetter() }) {
             handleT9Input(action.key)
             return
         }
 
         handleMultiTap(action, connection)
+
+        if (manualMode && action.key.characters.none { it.isLetter() }) {
+            manualMode = false
+        }
     }
 
     private fun handleMultiTap(action: KeyAction.Character, connection: InputConnection) {
@@ -303,6 +307,7 @@ class WearKeyboardService : InputMethodService() {
             KeyType.NORMAL -> {
                 connection.commitText(action.key.code, 1)
                 suggestions = emptyList()
+                if (manualMode) manualMode = false
             }
 
             KeyType.FUNCTION -> Unit
@@ -398,6 +403,7 @@ class WearKeyboardService : InputMethodService() {
 
     private fun handleSpace() {
         currentInputConnection?.commitText(" ", 1)
+        if (manualMode) manualMode = false
         suggestions = emptyList()
 
         if (!keyboardState.capsLock) {
@@ -421,6 +427,9 @@ class WearKeyboardService : InputMethodService() {
                 KeyEvent.KEYCODE_ENTER
             )
         )
+
+        if (manualMode) manualMode = false
+        suggestions = emptyList()
     }
 
     private fun handleShift() {
