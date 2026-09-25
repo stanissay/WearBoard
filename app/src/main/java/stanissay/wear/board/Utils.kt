@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.room.Room
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumnItemScope
 import androidx.wear.compose.material.*
 import androidx.wear.compose.material3.lazy.TransformationSpec
@@ -436,3 +437,16 @@ fun TransformingLazyColumnItemScope.transformedItem(
                 applyContainerTransformation(scrollProgress)
             }
         }
+
+fun createDictionaryDatabase(language: KeyboardLayout, context: Context): DictionaryDatabase {
+    val name = when (language) {
+        KeyboardLayout.ENGLISH -> "en.db"
+        KeyboardLayout.UKRAINIAN -> "uk.db"
+    }
+
+    return Room.databaseBuilder(
+        context,
+        DictionaryDatabase::class.java,
+        name
+    ).build()
+}

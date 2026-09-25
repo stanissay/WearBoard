@@ -1,16 +1,6 @@
 package stanissay.wear.board
 
-import android.content.Context
-import androidx.room.Dao
-import androidx.room.Database
-import androidx.room.Entity
-import androidx.room.Index
-import androidx.room.Insert
-import androidx.room.PrimaryKey
-import androidx.room.Query
-import androidx.room.Room
-import androidx.room.RoomDatabase
-import androidx.room.Transaction
+import androidx.room.*
 
 @Entity(
     tableName = "words",
@@ -61,20 +51,29 @@ interface DictionaryDao {
     }
 
     @Query("""
-    SELECT id, word, t9, frequency FROM words
-    WHERE t9 LIKE :t9 || '%'
-      AND t9 != :t9
-    ORDER BY frequency DESC
-    LIMIT 5
+    WITH exact AS (
+        SELECT id, word, t9, frequency, 0 AS priority
+        FROM words
+        WHERE t9 = :t9
+        ORDER BY frequency DESC
+    ),
+    prefix AS (
+        SELECT id, word, t9, frequency, 1 AS priority
+        FROM words
+        WHERE t9 LIKE :t9 || '%'
+          AND t9 != :t9
+        ORDER BY frequency DESC
+        LIMIT 5
+    )
+    SELECT id, word, t9, frequency
+    FROM (
+        SELECT * FROM exact
+        UNION ALL
+        SELECT * FROM prefix
+    )
+    ORDER BY priority, frequency DESC
 """)
-    fun getPrefixSuggestions(t9: String): List<DictionaryWord>
-
-    @Query("""
-    SELECT id, word, t9, frequency FROM words
-    WHERE t9 = :t9
-    ORDER BY frequency DESC
-""")
-    fun getExactSuggestions(t9: String): List<DictionaryWord>
+    fun getSuggestions(t9: String): List<DictionaryWord>
 
     @Query("SELECT COUNT(*) FROM words")
     fun count(): Int
@@ -94,17 +93,4 @@ interface DictionaryDao {
 abstract class DictionaryDatabase : RoomDatabase() {
 
     abstract fun dictionaryDao(): DictionaryDao
-}
-
-fun createDictionaryDatabase(language: KeyboardLayout, context: Context): DictionaryDatabase {
-    val name = when (language) {
-        KeyboardLayout.ENGLISH -> "en.db"
-        KeyboardLayout.UKRAINIAN -> "uk.db"
-    }
-
-    return Room.databaseBuilder(
-        context,
-        DictionaryDatabase::class.java,
-        name
-    ).build()
 }

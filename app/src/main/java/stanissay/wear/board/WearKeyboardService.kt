@@ -26,12 +26,14 @@ class WearKeyboardService : InputMethodService() {
     private var suggestionJob: Job? = null
     private var t9TimeoutJob: Job? = null
     private var currentLayout by mutableStateOf(KeyboardLayout.ENGLISH)
+    private var dictionaryDatabase: DictionaryDatabase? = null
     private var currentText by mutableStateOf("")
     private var suggestions by mutableStateOf<List<String>>(emptyList())
     private var cursorPosition by mutableIntStateOf(0)
     private var keyboardState by mutableStateOf(KeyboardState())
     private var lastShiftPressTime = 0L
     private var lastT9PressTime = 0L
+    private var t9RequestId = 0L
     private var lastT9Key: Key? = null
     private var keyboardVisible = false
     private var manualMode by mutableStateOf(false)
@@ -131,6 +133,10 @@ class WearKeyboardService : InputMethodService() {
             else -> KeyboardLayout.ENGLISH
         }
 
+        if (dictionaryDatabase == null && isT9Enabled()) {
+            dictionaryDatabase = createDictionaryDatabase(currentLayout, applicationContext)
+        }
+
         readVoiceResult()
     }
 
@@ -147,6 +153,12 @@ class WearKeyboardService : InputMethodService() {
         lifecycleOwner.onResume()
         updateText()
         readVoiceResult()
+    }
+
+    override fun onFinishInput() {
+        super.onFinishInput()
+        dictionaryDatabase?.close()
+        dictionaryDatabase = null
     }
 
     override fun onFinishInputView(finishing: Boolean) {
@@ -235,24 +247,37 @@ class WearKeyboardService : InputMethodService() {
     }
 
     private fun handleT9Input(key: Key) {
+        val connection = currentInputConnection ?: return
         val currentWord = getCurrentWord()
         val t9 = wordToT9(currentWord) + key.code
         val firstCharacter = key.characters.firstOrNull() ?: return
 
+        connection.commitText(firstCharacter.toString(), 1)
+
+        updateText()
+
+        val requestId = ++t9RequestId
+
         suggestionJob?.cancel()
 
         suggestionJob = serviceScope.launch(Dispatchers.IO) {
-            val database = createDictionaryDatabase(currentLayout, applicationContext)
+            val database = dictionaryDatabase ?: return@launch
+            val result = database.dictionaryDao().getSuggestions(t9).map { it.word }
 
-            try {
-                val exactMatches = database.dictionaryDao().getExactSuggestions(t9)
-                val prefixMatches = database.dictionaryDao().getPrefixSuggestions(t9)
-                val result = (exactMatches + prefixMatches).map { it.word }
+            withContext(Dispatchers.Main) {
+                if (requestId != t9RequestId) {
+                    return@withContext
+                }
 
-                withContext(Dispatchers.Main) {
-                    val connection = currentInputConnection ?: return@withContext
-                    val word = exactMatches.firstOrNull()?.word ?: firstCharacter.toString()
+                val connection = currentInputConnection ?: return@withContext
 
+                val updatedWord = getCurrentWord()
+
+                val word = result.firstOrNull {
+                    it.length == t9.length
+                }
+
+                if (word != null) {
                     val newWord = when {
                         keyboardState.capsLock -> {
                             word.uppercase()
@@ -264,7 +289,7 @@ class WearKeyboardService : InputMethodService() {
                             }
                         }
 
-                        currentWord.firstOrNull()?.isUpperCase() == true -> {
+                        updatedWord.firstOrNull()?.isUpperCase() == true -> {
                             word.replaceFirstChar {
                                 it.uppercase()
                             }
@@ -275,22 +300,19 @@ class WearKeyboardService : InputMethodService() {
                         }
                     }
 
-                    if (currentWord.isNotEmpty()) {
-                        connection.deleteSurroundingText(currentWord.length, 0)
-                    }
-
+                    connection.deleteSurroundingText(updatedWord.length, 0)
                     connection.commitText(newWord, 1)
 
+                    suggestions = result.filter { it != word }
+                } else {
                     suggestions = result
-
-                    if (keyboardState.shift && !keyboardState.capsLock) {
-                        keyboardState = keyboardState.copy(shift = false)
-                    }
-
-                    updateText()
                 }
-            } finally {
-                database.close()
+
+                if (keyboardState.shift && !keyboardState.capsLock) {
+                    keyboardState = keyboardState.copy(shift = false)
+                }
+
+                updateText()
             }
         }
     }
@@ -355,6 +377,8 @@ class WearKeyboardService : InputMethodService() {
     private fun handleDelete() {
         val connection = currentInputConnection ?: return
 
+        t9RequestId++
+
         connection.deleteSurroundingText(1, 0)
 
         updateText()
@@ -378,21 +402,54 @@ class WearKeyboardService : InputMethodService() {
             return
         }
 
+        val requestId = t9RequestId
+
         suggestionJob?.cancel()
 
         suggestionJob = serviceScope.launch(Dispatchers.IO) {
-            val database = createDictionaryDatabase(currentLayout, applicationContext)
+            val database = dictionaryDatabase ?: return@launch
+            val result = database.dictionaryDao().getSuggestions(t9).map { it.word }
 
-            try {
-                val exactMatches = database.dictionaryDao().getExactSuggestions(t9)
-                val prefixMatches = database.dictionaryDao().getPrefixSuggestions(t9)
-                val result = (exactMatches + prefixMatches).map { it.word }
+            withContext(Dispatchers.Main) {
+                if (requestId != t9RequestId) { return@withContext }
 
-                withContext(Dispatchers.Main) {
+                val connection = currentInputConnection ?: return@withContext
+                val currentWord = getCurrentWord()
+                val word = result.firstOrNull { it.length == currentWord.length }
+
+                if (word != null) {
+                    val newWord = when {
+                        keyboardState.capsLock -> {
+                            word.uppercase()
+                        }
+
+                        keyboardState.shift -> {
+                            word.replaceFirstChar {
+                                it.uppercase()
+                            }
+                        }
+
+                        currentWord.firstOrNull()?.isUpperCase() == true -> {
+                            word.replaceFirstChar {
+                                it.uppercase()
+                            }
+                        }
+
+                        else -> {
+                            word
+                        }
+                    }
+
+                    connection.deleteSurroundingText(currentWord.length, 0)
+
+                    connection.commitText(newWord, 1)
+
+                    suggestions = result.filter { it != word }
+                } else {
                     suggestions = result
                 }
-            } finally {
-                database.close()
+
+                updateText()
             }
         }
     }
@@ -506,6 +563,11 @@ class WearKeyboardService : InputMethodService() {
         val subtype = subtypes.firstOrNull { it.languageTag == targetLanguage } ?: return
 
         switchInputMethod(info.id, subtype)
+
+        if(isT9Enabled()) {
+            dictionaryDatabase?.close()
+            dictionaryDatabase = createDictionaryDatabase(currentLayout, applicationContext)
+        }
     }
 
     private fun moveCursor(direction: Int) {
@@ -556,19 +618,15 @@ class WearKeyboardService : InputMethodService() {
         }
 
         serviceScope.launch(Dispatchers.IO) {
-            val database = createDictionaryDatabase(currentLayout, applicationContext)
+            val database = dictionaryDatabase ?: return@launch
 
-            try {
-                database.dictionaryDao().insertOrIncrement(
-                    DictionaryWord(
-                        word = word,
-                        t9 = t9,
-                        frequency = 1
-                    )
+            database.dictionaryDao().insertOrIncrement(
+                DictionaryWord(
+                    word = word,
+                    t9 = t9,
+                    frequency = 1
                 )
-            } finally {
-                database.close()
-            }
+            )
 
             withContext(Dispatchers.Main) {
                 manualMode = false
@@ -626,13 +684,9 @@ class WearKeyboardService : InputMethodService() {
         }
 
         serviceScope.launch(Dispatchers.IO) {
-            val database = createDictionaryDatabase(currentLayout, applicationContext)
+            val database = dictionaryDatabase ?: return@launch
 
-            try {
-                database.dictionaryDao().incrementFrequency(word)
-            } finally {
-                database.close()
-            }
+            database.dictionaryDao().incrementFrequency(word)
         }
 
         updateText()
