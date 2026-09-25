@@ -1,5 +1,7 @@
 # WearBoard
 
+![Logo](assets/logo.png)
+
 ## T9 Keyboard for Wear OS
 
 A compact, intuitive keyboard designed specifically for circular Wear OS displays. Built with modern Android development practices to provide fast text input while keeping the interface simple, responsive, and comfortable to use on a smartwatch.
