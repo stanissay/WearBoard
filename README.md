@@ -1,6 +1,6 @@
 # WearBoard
 
-![Logo](assets/logo.png)
+![Logo](assets/logo.jpg)
 
 ## T9 Keyboard for Wear OS
 
