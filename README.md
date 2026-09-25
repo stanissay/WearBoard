@@ -78,6 +78,14 @@ The active keyboard language follows the selected input method language.
 4. Enable WearBoard as an available keyboard in the system keyboard settings.
 5. Select WearBoard when entering text.
 
+## 📚 Dictionaries
+
+The English and Ukrainian dictionaries used by WearBoard are based on the dictionary data from [Traditional T9 (TT9)](https://github.com/sspanak/tt9).
+
+TT9 combines word lists, frequency data, and other linguistic data from multiple open and publicly documented sources. Please refer to the TT9 repository and the accompanying dictionary license files for detailed source information and licensing requirements.
+
+WearBoard does not claim ownership of the original dictionary data.
+
 ## 📝 License
 
 This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
