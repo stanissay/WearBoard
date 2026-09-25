@@ -77,9 +77,8 @@ The active keyboard language follows the selected input method language.
 
 1. Clone the repository.
 2. Open the project in Android Studio.
-3. Build and install WearBoard on your Wear OS device or emulator.
+3. Build and install WearBoard on your Wear OS device.
 4. Enable WearBoard as an available keyboard in the system keyboard settings.
-5. Select WearBoard when entering text.
 
 ## 📚 Dictionaries
 
