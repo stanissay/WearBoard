@@ -5,7 +5,9 @@ import androidx.room.*
 @Entity(
     tableName = "words",
     indices = [
-        Index(value = ["t9"])
+        Index(
+            value = ["t9", "frequency"]
+        )
     ]
 )
 data class DictionaryWord(
@@ -55,12 +57,12 @@ interface DictionaryDao {
         SELECT id, word, t9, frequency, 0 AS priority
         FROM words
         WHERE t9 = :t9
-        ORDER BY frequency DESC
     ),
     prefix AS (
         SELECT id, word, t9, frequency, 1 AS priority
         FROM words
-        WHERE t9 LIKE :t9 || '%'
+        WHERE t9 >= :t9
+          AND t9 < :prefixEnd
           AND t9 != :t9
         ORDER BY frequency DESC
         LIMIT 5
@@ -73,7 +75,7 @@ interface DictionaryDao {
     )
     ORDER BY priority, frequency DESC
 """)
-    fun getSuggestions(t9: String): List<DictionaryWord>
+    fun getSuggestions(t9: String, prefixEnd: String): List<DictionaryWord>
 
     @Query("SELECT COUNT(*) FROM words")
     fun count(): Int

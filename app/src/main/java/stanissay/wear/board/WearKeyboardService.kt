@@ -62,6 +62,45 @@ class WearKeyboardService : InputMethodService() {
             "uk" -> KeyboardLayout.UKRAINIAN
             else -> KeyboardLayout.ENGLISH
         }
+
+        if(isT9Enabled()) {
+            dictionaryDatabase?.close()
+            dictionaryDatabase = createDictionaryDatabase(currentLayout, applicationContext)
+
+            if (manualMode) {
+                suggestions = emptyList()
+                return
+            }
+
+            val currentWord = getCurrentWord()
+
+            if (currentWord.isEmpty()) {
+                suggestions = emptyList()
+                return
+            }
+
+            val t9 = wordToT9(currentWord)
+
+            if (t9.isEmpty()) {
+                suggestions = emptyList()
+                return
+            }
+
+            val requestId = ++t9RequestId
+
+            suggestionJob?.cancel()
+
+            suggestionJob = serviceScope.launch(Dispatchers.IO) {
+                val database = dictionaryDatabase ?: return@launch
+                val result = database.dictionaryDao().getSuggestions(t9, t9PrefixEnd(t9)).map { it.word }
+
+                withContext(Dispatchers.Main) {
+                    if (requestId != t9RequestId) { return@withContext }
+
+                    suggestions = result
+                }
+            }
+        }
     }
 
     override fun onCreateInputView(): View {
@@ -262,7 +301,7 @@ class WearKeyboardService : InputMethodService() {
 
         suggestionJob = serviceScope.launch(Dispatchers.IO) {
             val database = dictionaryDatabase ?: return@launch
-            val result = database.dictionaryDao().getSuggestions(t9).map { it.word }
+            val result = database.dictionaryDao().getSuggestions(t9, t9PrefixEnd(t9)).map { it.word }
 
             withContext(Dispatchers.Main) {
                 if (requestId != t9RequestId) {
@@ -408,7 +447,7 @@ class WearKeyboardService : InputMethodService() {
 
         suggestionJob = serviceScope.launch(Dispatchers.IO) {
             val database = dictionaryDatabase ?: return@launch
-            val result = database.dictionaryDao().getSuggestions(t9).map { it.word }
+            val result = database.dictionaryDao().getSuggestions(t9, t9PrefixEnd(t9)).map { it.word }
 
             withContext(Dispatchers.Main) {
                 if (requestId != t9RequestId) { return@withContext }
@@ -563,11 +602,6 @@ class WearKeyboardService : InputMethodService() {
         val subtype = subtypes.firstOrNull { it.languageTag == targetLanguage } ?: return
 
         switchInputMethod(info.id, subtype)
-
-        if(isT9Enabled()) {
-            dictionaryDatabase?.close()
-            dictionaryDatabase = createDictionaryDatabase(currentLayout, applicationContext)
-        }
     }
 
     private fun moveCursor(direction: Int) {
@@ -665,6 +699,19 @@ class WearKeyboardService : InputMethodService() {
         }
 
         return text.substring(start, cursor)
+    }
+
+    private fun t9PrefixEnd(t9: String): String {
+        val chars = t9.toCharArray()
+
+        for (i in chars.lastIndex downTo 0) {
+            if (chars[i] < '9') {
+                chars[i]++
+                return String(chars, 0, i + 1)
+            }
+        }
+
+        return t9 + '\uFFFF'
     }
 
     private fun selectSuggestion(word: String) {
