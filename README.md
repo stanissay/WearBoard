@@ -32,7 +32,7 @@ The keyboard is designed around fast interactions that work naturally on a smart
 | **Double Tap Shift** | Enable Caps Lock |
 | **Tap Delete** | Delete the previous character |
 | **Tap Space** | Insert a space and finish the current word |
-| **Tap Enter** | Confirm the current input |
+| **Tap Center** | Confirm the current input |
 | **Swipe left** | Switch between English and Ukrainian layouts |
 | **Swipe up** | Switch between language and symbol layouts |
 
