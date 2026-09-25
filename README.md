@@ -33,7 +33,8 @@ The keyboard is designed around fast interactions that work naturally on a smart
 | **Tap Delete** | Delete the previous character |
 | **Tap Space** | Insert a space and finish the current word |
 | **Tap Enter** | Confirm the current input |
-| **Tap Language** | Switch between English and Ukrainian layouts |
+| **Swipe left** | Switch between English and Ukrainian layouts |
+| **Swipe up** | Switch between language and symbol layouts |
 
 ## 🔤 T9 Input
 
