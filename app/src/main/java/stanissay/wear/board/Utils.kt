@@ -78,8 +78,8 @@ object MainFunctions {
 
 object MainColors {
     val BACKGROUND = Color(0xFF000000)
-    val FIRST_ACCENT = Color(0xFF81C784)
-    val SECOND_ACCENT = Color(0xFFFF8A65)
+    val FIRST_ACCENT = Color(0xFF4DB6AC)
+    val SECOND_ACCENT = Color(0xFFD4A574)
     val WHITE = Color(0xFFCECECE)
     val GRAY = Color(0xFF616161)
     val TRANSPARENT = Color(0x00000000)
