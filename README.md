@@ -8,9 +8,9 @@ A compact, intuitive keyboard designed specifically for circular Wear OS display
 
 ## ✨ Features
 
-- **Circular-Optimized UI:** Designed specifically for round Wear OS displays and small touch targets.
-- **T9 Text Input:** Quickly enter words using multi-letter keys instead of a full QWERTY keyboard.
-- **English & Ukrainian:** Supports both English and Ukrainian layouts with separate dictionaries.
+- **Circular-Optimized UI:** Designed specifically for round Wear OS.
+- **T9 Text Input:** Quickly enter words using multi-letter keys.
+- **Supported Languages:** Supports English and Ukrainian layouts with separate dictionaries.
 - **Smart Word Suggestions:** Automatically suggests words while typing based on the current T9 sequence.
 - **Personal Dictionary:** Words can be manually entered using multi-tap input and saved to the dictionary for future suggestions.
 - **Multi-Tap Input:** Switch to traditional phone-style multi-tap input when you need to enter a word that is not recognized by the dictionary.
@@ -27,14 +27,16 @@ The keyboard is designed around fast interactions that work naturally on a smart
 | **Tap T9 Key** | Enter the next character and search for matching words |
 | **Tap ABC** | Switch to manual multi-tap input |
 | **Tap Save** | Save the current word to the personal dictionary |
-| **Long Press Key** | Enter the key's secondary character or number |
+| **Long Press Key** | Enter the key's primary character or number |
 | **Tap Shift** | Toggle uppercase for the next character |
 | **Double Tap Shift** | Enable Caps Lock |
 | **Tap Delete** | Delete the previous character |
+| **Hold Delete** | Continuous deleting characters |
 | **Tap Space** | Insert a space and finish the current word |
-| **Tap Center** | Confirm the current input |
-| **Swipe left** | Switch between English and Ukrainian layouts |
+| **Tap Center Screen** | Confirm the current input |
+| **Swipe left** | Switch between language layouts |
 | **Swipe up** | Switch between language and symbol layouts |
+| **Shake** | Close keyboard |
 
 ## 🔤 T9 Input
 
@@ -58,27 +60,6 @@ WearBoard currently supports:
 
 - 🇬🇧 English
 - 🇺🇦 Ukrainian
-
-Each language uses its own dictionary database, allowing large dictionaries to be stored and searched efficiently on the watch.
-
-The active keyboard language follows the selected input method language.
-
-## 🛠 Tech Stack
-
-- **Language:** Kotlin
-- **UI:** Jetpack Compose for Wear OS
-- **Input:** Android InputMethodService
-- **Database:** Room / SQLite
-- **Persistence:** Local dictionary databases
-- **Asynchrony:** Kotlin Coroutines
-- **Architecture:** State-based UI with asynchronous dictionary search
-
-## 🚀 Getting Started
-
-1. Clone the repository.
-2. Open the project in Android Studio.
-3. Build and install WearBoard on your Wear OS device.
-4. Enable WearBoard as an available keyboard in the system keyboard settings.
 
 ## 📚 Dictionaries
 
