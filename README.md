@@ -58,8 +58,8 @@ The dictionary also keeps a frequency value for words, allowing frequently selec
 
 WearBoard currently supports:
 
-- 🇬🇧 English
-- 🇺🇦 Ukrainian
+-  English
+-  Ukrainian
 
 ## 📚 Dictionaries
 
