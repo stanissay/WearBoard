@@ -17,10 +17,7 @@ package stanissay.wear.board
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -31,7 +28,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -208,6 +208,65 @@ fun ClickableBox(
 }
 
 @Composable
+fun MainKeyBox(
+    modifier: Modifier = Modifier,
+    startAngle: Float,
+    sweepAngle: Float,
+    innerRadius: Dp,
+    outerRadius: Dp,
+    color: Color = MaterialTheme.colors.primary
+) {
+    Canvas(
+        modifier = modifier
+    ) {
+        val center = Offset(
+            size.width / 2f,
+            size.height / 2f
+        )
+
+        val inner = innerRadius.toPx()
+        val outer = outerRadius.toPx()
+
+        val outerRect = Rect(
+            left = center.x - outer,
+            top = center.y - outer,
+            right = center.x + outer,
+            bottom = center.y + outer
+        )
+
+        val innerRect = Rect(
+            left = center.x - inner,
+            top = center.y - inner,
+            right = center.x + inner,
+            bottom = center.y + inner
+        )
+
+        val path = Path().apply {
+            arcTo(
+                rect = outerRect,
+                startAngleDegrees = startAngle,
+                sweepAngleDegrees = sweepAngle,
+                forceMoveTo = true
+            )
+
+            arcTo(
+                rect = innerRect,
+                startAngleDegrees = startAngle + sweepAngle,
+                sweepAngleDegrees = -sweepAngle,
+                forceMoveTo = false
+            )
+
+            close()
+        }
+
+        drawPath(
+            path = path,
+            color = color
+        )
+    }
+}
+
+@Composable
 fun MainText(
     text: String,
     modifier: Modifier = Modifier,
@@ -285,6 +344,14 @@ fun CaptureText(
         modifier = modifier,
         style = MaterialTheme.typography.caption1,
         color = MaterialTheme.colors.surface
+    )
+}
+
+@Composable
+fun MainDivider() {
+    Box(
+        modifier = Modifier.fillMaxWidth().height(MainConstants.THICKNESS)
+            .background(MaterialTheme.colors.surface)
     )
 }
 

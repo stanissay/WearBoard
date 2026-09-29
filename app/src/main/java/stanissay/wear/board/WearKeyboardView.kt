@@ -172,7 +172,7 @@ fun KeyboardScreen(
                 modifier = Modifier.weight(1f),
                 onClick = onSuggestionClick
             )
-
+            MainDivider()
             InputField(
                 text = text,
                 cursorPosition = cursorPosition,
@@ -180,7 +180,7 @@ fun KeyboardScreen(
                 onLongClick = onLongClick,
                 modifier = Modifier.weight(1f)
             )
-
+            MainDivider()
             FunctionKeys(
                 keyboard = funKeyboard,
                 onKeyAction = onKeyAction,
@@ -343,6 +343,7 @@ fun CircularKeypad(
     onKeyAction: (KeyAction) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val density = LocalDensity.current
     val keys = keyboard.flatten()
     var lastKey by remember { mutableStateOf<Key?>(null) }
     var characterIndex by remember { mutableIntStateOf(0) }
@@ -386,16 +387,35 @@ fun CircularKeypad(
     ) {
         val sizePx = constraints.maxWidth.toFloat()
         val center = sizePx / 2f
-        val keySizePx = with(LocalDensity.current) {
+        val keySizePx = with(density) {
             MainConstants.BUTTON_SIZE_L.toPx()
         }
         val radius = center - keySizePx / 2f
         val angleStep = (2 * PI) / keys.size
+        val gapAngle = Math.toRadians(3.0)
+        val outerRadius = center - with(density) {
+            4.dp.toPx()
+        }
+        val innerRadius = outerRadius - keySizePx
 
         keys.forEachIndexed { index, key ->
             val angle = angleStep * index - PI / 2
             val x = center + radius * cos(angle).toFloat()
             val y = center + radius * sin(angle).toFloat()
+            val startAngle = Math.toDegrees(angle - angleStep / 2 + gapAngle / 2).toFloat()
+            val sweepAngle = Math.toDegrees(angleStep - gapAngle).toFloat()
+
+            MainKeyBox(
+                modifier = Modifier.fillMaxSize(),
+                startAngle = startAngle,
+                sweepAngle = sweepAngle,
+                innerRadius = with(LocalDensity.current) {
+                    innerRadius.toDp()
+                },
+                outerRadius = with(LocalDensity.current) {
+                    outerRadius.toDp()
+                }
+            )
 
             ClickableBox(
                 modifier = Modifier.size(MainConstants.BUTTON_SIZE_L)
