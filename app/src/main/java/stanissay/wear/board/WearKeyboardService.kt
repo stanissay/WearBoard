@@ -18,6 +18,7 @@ package stanissay.wear.board
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.inputmethodservice.InputMethodService
+import android.text.InputType
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -46,6 +47,7 @@ class WearKeyboardService : InputMethodService() {
     private var suggestions by mutableStateOf<List<String>>(emptyList())
     private var cursorPosition by mutableIntStateOf(0)
     private var keyboardState by mutableStateOf(KeyboardState())
+    private var autoShiftEnabled by mutableStateOf(false)
     private var lastShiftPressTime = 0L
     private var lastT9PressTime = 0L
     private var t9RequestId = 0L
@@ -192,6 +194,12 @@ class WearKeyboardService : InputMethodService() {
         }
 
         readVoiceResult()
+
+        val inputType = attribute?.inputType ?: 0
+        val inputClass = inputType and InputType.TYPE_MASK_CLASS
+        val inputVariation = inputType and InputType.TYPE_MASK_VARIATION
+
+        autoShiftEnabled = inputClass == InputType.TYPE_CLASS_TEXT && inputVariation == InputType.TYPE_TEXT_VARIATION_NORMAL
     }
 
     override fun onWindowShown() {
@@ -207,6 +215,11 @@ class WearKeyboardService : InputMethodService() {
         lifecycleOwner.onResume()
         updateText()
         readVoiceResult()
+        if (!keyboardState.capsLock) {
+            keyboardState = keyboardState.copy(
+                shift = shouldAutoShift()
+            )
+        }
     }
 
     override fun onFinishInput() {
@@ -290,7 +303,7 @@ class WearKeyboardService : InputMethodService() {
             delay(MainConstants.MULTI_TAP_THRESHOLD.milliseconds)
 
             if (lastT9Key == action.key && !keyboardState.capsLock) {
-                keyboardState = keyboardState.copy(shift = false)
+                keyboardState = keyboardState.copy(shift = shouldAutoShift())
             }
 
             lastT9Key = null
@@ -306,7 +319,13 @@ class WearKeyboardService : InputMethodService() {
         val t9 = wordToT9(currentWord) + key.code
         val firstCharacter = key.characters.firstOrNull() ?: return
 
-        connection.commitText(firstCharacter.toString(), 1)
+        val character = when {
+            keyboardState.capsLock -> firstCharacter.uppercaseChar()
+            keyboardState.shift -> firstCharacter.uppercaseChar()
+            else -> firstCharacter.lowercaseChar()
+        }
+
+        connection.commitText(character.toString(), 1)
 
         updateText()
 
@@ -363,7 +382,7 @@ class WearKeyboardService : InputMethodService() {
                 }
 
                 if (keyboardState.shift && !keyboardState.capsLock) {
-                    keyboardState = keyboardState.copy(shift = false)
+                    keyboardState = keyboardState.copy(shift = shouldAutoShift())
                 }
 
                 updateText()
@@ -397,6 +416,12 @@ class WearKeyboardService : InputMethodService() {
             }
 
         connection.commitText(character.toString(), 1)
+
+        if (!keyboardState.capsLock) {
+            keyboardState = keyboardState.copy(
+                shift = shouldAutoShift()
+            )
+        }
     }
 
     private fun handleFunctionCharacter(action: KeyAction.Character, connection: InputConnection) {
@@ -436,6 +461,12 @@ class WearKeyboardService : InputMethodService() {
         connection.deleteSurroundingText(1, 0)
 
         updateText()
+
+        if (!keyboardState.capsLock) {
+            keyboardState = keyboardState.copy(
+                shift = shouldAutoShift()
+            )
+        }
 
         if (manualMode || !isT9Enabled()) {
             suggestions = emptyList()
@@ -514,7 +545,9 @@ class WearKeyboardService : InputMethodService() {
         suggestions = emptyList()
 
         if (!keyboardState.capsLock) {
-            keyboardState = keyboardState.copy(shift = false)
+            keyboardState = keyboardState.copy(
+                shift = shouldAutoShift()
+            )
         }
     }
 
@@ -537,6 +570,12 @@ class WearKeyboardService : InputMethodService() {
 
         if (manualMode) manualMode = false
         suggestions = emptyList()
+
+        if (!keyboardState.capsLock) {
+            keyboardState = keyboardState.copy(
+                shift = shouldAutoShift()
+            )
+        }
     }
 
     private fun handleShift() {
@@ -777,5 +816,14 @@ class WearKeyboardService : InputMethodService() {
                 append(digit)
             }
         }
+    }
+
+    private fun shouldAutoShift(): Boolean {
+        if (!autoShiftEnabled) return false
+        val connection = currentInputConnection ?: return false
+        val beforeCursor = connection.getTextBeforeCursor(100, 0)?.toString() ?: return true
+        val text = beforeCursor.trimEnd()
+
+        return text.isEmpty() || text.last() == '.' || text.last() == '!' || text.last() == '?'
     }
 }

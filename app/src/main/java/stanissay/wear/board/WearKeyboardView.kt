@@ -25,10 +25,8 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -59,14 +57,15 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.wear.compose.foundation.CurvedLayout
+import androidx.wear.compose.foundation.CurvedModifier
+import androidx.wear.compose.foundation.padding
+import androidx.wear.compose.foundation.size
 import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.MaterialTheme
 import stanissay.wear.board.MainConstants.CURSOR_PADDING
-import kotlin.math.PI
 import kotlin.math.abs
-import kotlin.math.cos
 import kotlin.math.pow
-import kotlin.math.sin
 import kotlin.math.sqrt
 
 @Composable
@@ -163,7 +162,7 @@ fun KeyboardScreen(
         Column(
             modifier = modifier.size(MainConstants.DISPLAY_SIZE)
                 .align(Alignment.Center)
-                .background(MaterialTheme.colors.background),
+                .background(color = MaterialTheme.colors.background, shape = MaterialTheme.shapes.large),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -343,7 +342,6 @@ fun CircularKeypad(
     onKeyAction: (KeyAction) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val density = LocalDensity.current
     val keys = keyboard.flatten()
     var lastKey by remember { mutableStateOf<Key?>(null) }
     var characterIndex by remember { mutableIntStateOf(0) }
@@ -381,56 +379,32 @@ fun CircularKeypad(
         }
     }
 
-    BoxWithConstraints(
-        modifier = modifier.fillMaxWidth()
-            .aspectRatio(1f)
+    CurvedLayout(
+        modifier = modifier.fillMaxSize(),
+        anchor = 75f
     ) {
-        val sizePx = constraints.maxWidth.toFloat()
-        val center = sizePx / 2f
-        val keySizePx = with(density) {
-            MainConstants.BUTTON_SIZE_L.toPx()
-        }
-        val radius = center - keySizePx / 2f
-        val angleStep = (2 * PI) / keys.size
-        val gapAngle = Math.toRadians(3.0)
-        val outerRadius = center - with(density) {
-            4.dp.toPx()
-        }
-        val innerRadius = outerRadius - keySizePx
-
-        keys.forEachIndexed { index, key ->
-            val angle = angleStep * index - PI / 2
-            val x = center + radius * cos(angle).toFloat()
-            val y = center + radius * sin(angle).toFloat()
-            val startAngle = Math.toDegrees(angle - angleStep / 2 + gapAngle / 2).toFloat()
-            val sweepAngle = Math.toDegrees(angleStep - gapAngle).toFloat()
-
-            MainKeyBox(
-                modifier = Modifier.fillMaxSize(),
-                startAngle = startAngle,
-                sweepAngle = sweepAngle,
-                innerRadius = with(LocalDensity.current) {
-                    innerRadius.toDp()
+        keys.forEach { key ->
+            this@CurvedLayout.mainCurvedBox(
+                modifier = CurvedModifier
+                    .size(
+                        sweepDegrees = 30f,
+                        thickness = MainConstants.BUTTON_SIZE_L
+                    )
+                    .padding(angular = MainConstants.THICKNESS),
+                size = MainConstants.BUTTON_SIZE_L,
+                onClick = {
+                    handleKey(key)
                 },
-                outerRadius = with(LocalDensity.current) {
-                    outerRadius.toDp()
-                }
-            )
-
-            ClickableBox(
-                modifier = Modifier.size(MainConstants.BUTTON_SIZE_L)
-                    .offset {
-                        IntOffset(
-                            (x - keySizePx / 2f).toInt(),
-                            (y - keySizePx / 2f).toInt()
-                        )
-                    },
-                onClick = { handleKey(key) },
-                onLongClick = { onKeyAction(KeyAction.LongPress(key)) },
+                onLongClick = {
+                    onKeyAction(KeyAction.LongPress(key))
+                },
                 repeatOnLongClick = key.type == KeyType.FUNCTION,
-                onLongClickRepeat = { onKeyAction(KeyAction.Function(key)) }
+                onLongClickRepeat = {
+                    onKeyAction(KeyAction.Function(key))
+                }
             ) {
                 Column(
+                    modifier = Modifier.fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {

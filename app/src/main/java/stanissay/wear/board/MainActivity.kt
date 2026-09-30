@@ -46,10 +46,10 @@ class MainActivity : ComponentActivity() {
         enableAllSubtypes()
         setContent {
             MainTheme {
-                if(!viewModel.showDictionaries) {
-                    MainScreen(viewModel)
-                } else {
-                    DictionariesScreen(viewModel)
+                when {
+                    viewModel.showDictionaries -> DictionariesScreen(viewModel)
+                    viewModel.showPreview -> KeyboardPreview(viewModel)
+                    else -> MainScreen(viewModel)
                 }
             }
         }
@@ -72,10 +72,12 @@ fun MainScreen(viewModel: MainViewModel) {
     ) {
         item { WearSpacer(transformationSpec) }
         item {
-            Box(
+            ClickableBox(
                 modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE)
                     .then(transformedItem(transformationSpec)),
-                contentAlignment = Alignment.Center
+                onClick = {
+                    viewModel.showPreview = true
+                }
             ) { TitleText(text = stringResource(R.string.app_name)) }
         }
         item {
@@ -229,4 +231,27 @@ fun DictionariesScreen(viewModel: MainViewModel) {
         }
         item { WearSpacer(transformationSpec) }
     }
+}
+
+@Composable
+fun KeyboardPreview(viewModel: MainViewModel) {
+    BackHandler { viewModel.showPreview = false }
+
+    KeyboardScreen(
+        modifier = Modifier,
+        keyboard = KeyboardLayouts.english,
+        funKeyboard = KeyboardLayouts.functions,
+        text = "",
+        cursorPosition = 0,
+        keyboardState = KeyboardState(),
+        suggestions = emptyList(),
+        manualMode = false,
+        isT9Enabled = false,
+        onKeyAction = {},
+        onLongClick = {},
+        onSuggestionClick = {},
+        onLangChange = {},
+        onCloseKeyboard = { viewModel.showPreview = false },
+        onExtended = {}
+    )
 }

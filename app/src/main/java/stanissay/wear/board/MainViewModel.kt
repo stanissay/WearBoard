@@ -40,6 +40,7 @@ import java.util.zip.ZipInputStream
 
 class MainViewModel (app: Application) : AndroidViewModel(app) {
     var showDictionaries by mutableStateOf(false)
+    var showPreview by mutableStateOf(false)
 
     fun downloadDictionary(language: KeyboardLayout) {
         viewModelScope.launch(Dispatchers.IO) {
