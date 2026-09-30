@@ -299,14 +299,13 @@ fun FunctionKeys(
                         Icon(
                             painter = painterResource(key.icon),
                             modifier = Modifier.size(MainConstants.BUTTON_SIZE_S),
-                            tint = if (
-                                key.code == MainFunctions.SHIFT &&
-                                (keyboardState.shift || keyboardState.capsLock)
-                            ) {
-                                MaterialTheme.colors.primary
-                            } else {
-                                MaterialTheme.colors.secondary
-                            },
+                            tint = if(key.code == MainFunctions.SHIFT) {
+                                when {
+                                    keyboardState.capsLock -> MaterialTheme.colors.primary
+                                    keyboardState.shift -> MaterialTheme.colors.secondary
+                                    else -> MaterialTheme.colors.surface
+                                }
+                            } else { MaterialTheme.colors.secondary },
                             contentDescription = null
                         )
                     } else { SecondAccentText(text = key.primaryLabel) }

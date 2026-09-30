@@ -338,15 +338,30 @@ class WearKeyboardService : InputMethodService() {
             val result = database.dictionaryDao().getSuggestions(t9, t9PrefixEnd(t9)).map { it.word }
 
             withContext(Dispatchers.Main) {
-                if (requestId != t9RequestId) {
-                    return@withContext
-                }
+                if (requestId != t9RequestId) { return@withContext }
 
                 val connection = currentInputConnection ?: return@withContext
-
                 val updatedWord = getCurrentWord()
+                val finalResult = result.map {
+                    when {
+                        keyboardState.capsLock -> {
+                            it.uppercase()
+                        }
 
-                val word = result.firstOrNull {
+                        keyboardState.shift ||
+                                currentWord.firstOrNull()?.isUpperCase() == true -> {
+                            it.replaceFirstChar { char ->
+                                char.uppercase()
+                            }
+                        }
+
+                        else -> {
+                            it
+                        }
+                    }
+                }
+
+                val word = finalResult.firstOrNull {
                     it.length == t9.length
                 }
 
@@ -376,9 +391,9 @@ class WearKeyboardService : InputMethodService() {
                     connection.deleteSurroundingText(updatedWord.length, 0)
                     connection.commitText(newWord, 1)
 
-                    suggestions = result.filter { it != word }
+                    suggestions = finalResult.filter { it != word }
                 } else {
-                    suggestions = result
+                    suggestions = finalResult
                 }
 
                 if (keyboardState.shift && !keyboardState.capsLock) {
@@ -500,7 +515,25 @@ class WearKeyboardService : InputMethodService() {
 
                 val connection = currentInputConnection ?: return@withContext
                 val currentWord = getCurrentWord()
-                val word = result.firstOrNull { it.length == currentWord.length }
+                val finalResult = result.map {
+                    when {
+                        keyboardState.capsLock -> {
+                            it.uppercase()
+                        }
+
+                        keyboardState.shift ||
+                                currentWord.firstOrNull()?.isUpperCase() == true -> {
+                            it.replaceFirstChar { char ->
+                                char.uppercase()
+                            }
+                        }
+
+                        else -> {
+                            it
+                        }
+                    }
+                }
+                val word = finalResult.firstOrNull { it.length == currentWord.length }
 
                 if (word != null) {
                     val newWord = when {
@@ -529,9 +562,9 @@ class WearKeyboardService : InputMethodService() {
 
                     connection.commitText(newWord, 1)
 
-                    suggestions = result.filter { it != word }
+                    suggestions = finalResult.filter { it != word }
                 } else {
-                    suggestions = result
+                    suggestions = finalResult
                 }
 
                 updateText()
@@ -583,7 +616,7 @@ class WearKeyboardService : InputMethodService() {
 
         keyboardState = if (keyboardState.capsLock) {
             keyboardState.copy(
-                shift = false,
+                shift = shouldAutoShift(),
                 capsLock = false
             )
         } else if (
