@@ -136,7 +136,7 @@ fun MainScreen(viewModel: MainViewModel) {
                 contentAlignment = Alignment.Center
             ) {
                 MainText(
-                    text = stringResource(R.string.version) + versionName,
+                    text = stringResource(R.string.version) + " $versionName",
                     color = MaterialTheme.colors.surface
                 )
             }

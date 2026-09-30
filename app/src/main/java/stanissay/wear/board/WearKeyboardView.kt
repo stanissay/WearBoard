@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -49,6 +50,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
@@ -61,7 +64,6 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.CurvedLayout
 import androidx.wear.compose.foundation.CurvedModifier
-import androidx.wear.compose.foundation.padding
 import androidx.wear.compose.foundation.size
 import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.MaterialTheme
@@ -161,35 +163,44 @@ fun KeyboardScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        Column(
+        Box(
             modifier = modifier.size(MainConstants.DISPLAY_SIZE)
                 .align(Alignment.Center)
-                .clip(CircleShape),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .clip(CircleShape)
+                .background(brush = Brush.radialGradient(MainColors.GRAD))
+                .padding(MainConstants.THICKNESS),
+            contentAlignment = Alignment.Center
         ) {
-            SuggestionRow(
-                suggestions = suggestions,
-                modifier = Modifier.height(MainConstants.BUTTON_SIZE).padding(horizontal = MainConstants.DISPLAY_PADDING),
-                onClick = onSuggestionClick
-            )
-            MainDivider()
-            InputField(
-                text = text,
-                cursorPosition = cursorPosition,
-                onClick = onKeyAction,
-                onLongClick = onLongClick,
-                modifier = Modifier.weight(1f)
-            )
-            MainDivider()
-            FunctionKeys(
-                keyboard = funKeyboard,
-                onKeyAction = onKeyAction,
-                keyboardState = keyboardState,
-                isT9Enabled = isT9Enabled,
-                manualMode = manualMode,
-                modifier = Modifier.height(MainConstants.BUTTON_SIZE).padding(horizontal = MainConstants.DISPLAY_PADDING)
-            )
+            Column(
+                modifier = modifier.fillMaxSize()
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colors.background),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                SuggestionRow(
+                    suggestions = suggestions,
+                    modifier = Modifier.height(MainConstants.BUTTON_SIZE).padding(horizontal = MainConstants.DISPLAY_PADDING),
+                    onClick = onSuggestionClick
+                )
+                MainDivider()
+                InputField(
+                    text = text,
+                    cursorPosition = cursorPosition,
+                    onClick = onKeyAction,
+                    onLongClick = onLongClick,
+                    modifier = Modifier.weight(1f)
+                )
+                MainDivider()
+                FunctionKeys(
+                    keyboard = funKeyboard,
+                    onKeyAction = onKeyAction,
+                    keyboardState = keyboardState,
+                    isT9Enabled = isT9Enabled,
+                    manualMode = manualMode,
+                    modifier = Modifier.height(MainConstants.BUTTON_SIZE).padding(horizontal = MainConstants.DISPLAY_PADDING)
+                )
+            }
         }
     }
 }
@@ -348,6 +359,7 @@ fun CircularKeypad(
     var characterIndex by remember { mutableIntStateOf(0) }
     var lastPressTime by remember { mutableLongStateOf(0L) }
 
+
     fun handleKey(key: Key) {
         if (key.type == KeyType.FUNCTION) {
             onKeyAction(KeyAction.Function(key))
@@ -384,15 +396,129 @@ fun CircularKeypad(
         modifier = modifier.fillMaxSize(),
         anchor = 75f
     ) {
-        keys.forEach { key ->
+        keys.forEachIndexed { index, key ->
+            val shape = when (index) {
+                0 -> RoundedCornerShape(
+                    topStart = MainConstants.RADIUS_L,
+                    topEnd = MainConstants.RADIUS_L,
+                    bottomStart = MainConstants.RADIUS,
+                    bottomEnd = MainConstants.RADIUS
+                )
+
+                1, 2 -> RoundedCornerShape(
+                    topStart = MainConstants.RADIUS_L,
+                    topEnd = MainConstants.RADIUS_L,
+                    bottomStart = MainConstants.RADIUS,
+                    bottomEnd = MainConstants.RADIUS_L
+                )
+
+                3 -> RoundedCornerShape(
+                    topStart = MainConstants.RADIUS,
+                    topEnd = MainConstants.RADIUS_L,
+                    bottomStart = MainConstants.RADIUS,
+                    bottomEnd = MainConstants.RADIUS_L
+                )
+
+                4, 5 -> RoundedCornerShape(
+                    topStart = MainConstants.RADIUS,
+                    topEnd = MainConstants.RADIUS_L,
+                    bottomStart = MainConstants.RADIUS_L,
+                    bottomEnd = MainConstants.RADIUS_L
+                )
+
+                6 -> RoundedCornerShape(
+                    topStart = MainConstants.RADIUS,
+                    topEnd = MainConstants.RADIUS,
+                    bottomStart = MainConstants.RADIUS_L,
+                    bottomEnd = MainConstants.RADIUS_L
+                )
+
+                7, 8 -> RoundedCornerShape(
+                    topStart = MainConstants.RADIUS_L,
+                    topEnd = MainConstants.RADIUS,
+                    bottomStart = MainConstants.RADIUS_L,
+                    bottomEnd = MainConstants.RADIUS_L
+                )
+
+                9 -> RoundedCornerShape(
+                    topStart = MainConstants.RADIUS_L,
+                    topEnd = MainConstants.RADIUS,
+                    bottomStart = MainConstants.RADIUS_L,
+                    bottomEnd = MainConstants.RADIUS
+                )
+
+                10, 11 -> RoundedCornerShape(
+                    topStart = MainConstants.RADIUS_L,
+                    topEnd = MainConstants.RADIUS_L,
+                    bottomStart = MainConstants.RADIUS_L,
+                    bottomEnd = MainConstants.RADIUS
+                )
+
+                else -> RoundedCornerShape(MainConstants.RADIUS)
+            }
+            val borderTop = if (index in listOf(4, 5, 6, 7, 8)) MainConstants.NULL_PADDING else MainConstants.THICKNESS
+            val borderBottom = if (index in listOf(0, 1, 2, 10, 11)) MainConstants.NULL_PADDING else MainConstants.THICKNESS
+            val borderStart = if (index in listOf(1, 2, 3, 4, 5)) MainConstants.NULL_PADDING else MainConstants.THICKNESS
+            val borderEnd = if (index in listOf(7, 8, 9, 10, 11)) MainConstants.NULL_PADDING else MainConstants.THICKNESS
+            val gradient = when (index) {
+                0 -> Brush.verticalGradient(
+                    colors = MainColors.GRAD.asReversed()
+                )
+
+                6 -> Brush.verticalGradient(
+                    colors = MainColors.GRAD
+                )
+
+                3 -> Brush.horizontalGradient(
+                    colors = MainColors.GRAD
+                )
+
+                9 -> Brush.horizontalGradient(
+                    colors = MainColors.GRAD.asReversed()
+                )
+
+                1, 2 -> Brush.linearGradient(
+                    colors = MainColors.GRAD,
+                    start = Offset(0f, Float.POSITIVE_INFINITY),
+                    end = Offset(Float.POSITIVE_INFINITY, 0f)
+                )
+
+                4, 5 -> Brush.linearGradient(
+                    colors = MainColors.GRAD,
+                    start = Offset(0f, 0f),
+                    end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
+                )
+
+                7, 8 -> Brush.linearGradient(
+                    colors = MainColors.GRAD,
+                    start = Offset(Float.POSITIVE_INFINITY, 0f),
+                    end = Offset(0f, Float.POSITIVE_INFINITY)
+                )
+
+                10, 11 -> Brush.linearGradient(
+                    colors = MainColors.GRAD,
+                    start = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
+                    end = Offset(0f, 0f)
+                )
+
+                else -> Brush.linearGradient(
+                    colors = MainColors.GRAD
+                )
+            }
+
             this@CurvedLayout.mainCurvedBox(
                 modifier = CurvedModifier
                     .size(
                         sweepDegrees = 30f,
                         thickness = MainConstants.BUTTON_SIZE_L
-                    )
-                    .padding(angular = MainConstants.THICKNESS),
+                    ),
                 size = MainConstants.BUTTON_SIZE_L,
+                shape = shape,
+                borderTop = borderTop,
+                borderBottom = borderBottom,
+                borderStart = borderStart,
+                borderEnd = borderEnd,
+                gradient = gradient,
                 onClick = {
                     handleKey(key)
                 },
@@ -405,7 +531,9 @@ fun CircularKeypad(
                 }
             ) {
                 Column(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize()
+                        .clip(shape)
+                        .background(MaterialTheme.colors.background),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {

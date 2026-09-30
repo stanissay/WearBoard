@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -43,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
@@ -225,6 +227,12 @@ fun ClickableBox(
 fun CurvedScope.mainCurvedBox(
     modifier: CurvedModifier = CurvedModifier,
     size: Dp = MainConstants.BASE_SIZE,
+    shape: Shape,
+    borderTop: Dp = MainConstants.THICKNESS,
+    borderBottom: Dp = MainConstants.THICKNESS,
+    borderStart: Dp = MainConstants.THICKNESS,
+    borderEnd: Dp = MainConstants.THICKNESS,
+    gradient: Brush,
     onClick: () -> Unit = {},
     onLongClick: (() -> Unit)? = null,
     repeatOnLongClick: Boolean = false,
@@ -237,12 +245,25 @@ fun CurvedScope.mainCurvedBox(
     ) {
         ClickableBox(
             modifier = Modifier.size(size),
+            shape = shape,
             onClick = onClick,
             onLongClick = onLongClick,
             repeatOnLongClick = repeatOnLongClick,
-            onLongClickRepeat = onLongClickRepeat,
-            content = content
-        )
+            onLongClickRepeat = onLongClickRepeat
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize()
+                    .clip(shape)
+                    .background(brush = gradient)
+                    .padding(
+                        start = borderStart,
+                        top = borderTop,
+                        end = borderEnd,
+                        bottom = borderBottom
+                    ),
+                contentAlignment = Alignment.Center
+            ) { content() }
+        }
     }
 }
 
@@ -331,6 +352,7 @@ fun CaptureText(
 fun MainDivider() {
     Box(
         modifier = Modifier.fillMaxWidth().height(MainConstants.THICKNESS)
+            .padding(horizontal = MainConstants.MAIN_PADDING)
             .background(MaterialTheme.colors.surface)
     )
 }

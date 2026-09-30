@@ -1,7 +1,7 @@
 <resources>
     <string name="enable_in_settings">Ввімкнути в налаштуваннях</string>
     <string name="dictionaries">Словники</string>
-    <string name="version">Версія </string>
+    <string name="version">Версія</string>
     <string name="listen">Слухаю</string>
     <string name="dictionary_download">Завантажити</string>
     <string name="dictionary_downloading">Завантаження…</string>

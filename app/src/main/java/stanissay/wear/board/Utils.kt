@@ -43,7 +43,7 @@ object MainConstants {
 
     val BUTTON_SIZE_S = 16.dp
     val BUTTON_SIZE = 32.dp
-    val BUTTON_SIZE_L = 48.dp
+    val BUTTON_SIZE_L = 36.dp
 
     val DISPLAY_SIZE = 96.dp
 
@@ -54,6 +54,8 @@ object MainConstants {
 
     val THICKNESS = 1.dp
     val ELEVATION = 8.dp
+    val RADIUS = 8.dp
+    val RADIUS_L = 16.dp
 
     const val SWIPE_RATIO = 0.4f
     const val MULTI_TAP_THRESHOLD = 1000
@@ -84,13 +86,17 @@ object MainColors {
     val WHITE = Color(0xFFCECECE)
     val GRAY = Color(0xFF616161)
     val TRANSPARENT = Color(0x00000000)
+
+    val GRAD_START = Color(0xFF000000)
+    val GRAD_END = Color(0xFF181818)
+    val GRAD = listOf(GRAD_START, GRAD_END)
 }
 
 val TypographyStyle = Typography(
-    title1 = TextStyle(fontSize = 15.sp),
-    body1 = TextStyle(fontSize = 13.sp),
-    body2 = TextStyle(fontSize = 11.sp),
-    caption1 = TextStyle(fontSize = 10.sp)
+    title1 = TextStyle(fontSize = 13.sp),
+    body1 = TextStyle(fontSize = 10.sp),
+    body2 = TextStyle(fontSize = 9.sp),
+    caption1 = TextStyle(fontSize = 8.sp)
 )
 
 val ColorStyle = Colors(
@@ -98,7 +104,7 @@ val ColorStyle = Colors(
     secondary = MainColors.SECOND_ACCENT,
     background = MainColors.BACKGROUND,
     surface = MainColors.GRAY,
-    onBackground = MainColors.WHITE,
+    onBackground = MainColors.WHITE
 )
 
 val ShapesStyle = Shapes(

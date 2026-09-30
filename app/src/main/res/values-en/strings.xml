@@ -1,7 +1,7 @@
 <resources>
     <string name="enable_in_settings">Enable in settings</string>
     <string name="dictionaries">Dictionaries</string>
-    <string name="version">Version </string>
+    <string name="version">Version</string>
     <string name="listen">Listen</string>
     <string name="dictionary_download">Download</string>
     <string name="dictionary_downloading">Downloading…</string>
