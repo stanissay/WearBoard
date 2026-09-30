@@ -45,11 +45,12 @@ object MainConstants {
     val BUTTON_SIZE = 32.dp
     val BUTTON_SIZE_L = 48.dp
 
-    val DISPLAY_SIZE = 64.dp
+    val DISPLAY_SIZE = 96.dp
 
     val NULL_PADDING = 0.dp
     val MAIN_PADDING = 8.dp
     val CURSOR_PADDING = 4.dp
+    val DISPLAY_PADDING = 16.dp
 
     val THICKNESS = 1.dp
     val ELEVATION = 8.dp
