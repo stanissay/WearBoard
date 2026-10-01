@@ -250,7 +250,7 @@ fun KeyboardPreview(viewModel: MainViewModel) {
         onKeyAction = {},
         onLongClick = {},
         onSuggestionClick = {},
-        onLangChange = {},
+        onLayoutChange = {},
         onCloseKeyboard = { viewModel.showPreview = false },
         onExtended = {}
     )

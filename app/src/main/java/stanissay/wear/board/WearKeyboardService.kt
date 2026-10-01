@@ -34,6 +34,7 @@ import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import kotlinx.coroutines.*
+import java.text.BreakIterator
 import kotlin.time.Duration.Companion.milliseconds
 
 class WearKeyboardService : InputMethodService() {
@@ -55,7 +56,8 @@ class WearKeyboardService : InputMethodService() {
     private var keyboardVisible = false
     private var manualMode by mutableStateOf(false)
     private val keyboard: List<List<Key>>
-        get() = if (keyboardState.symbolsMode) { KeyboardLayouts.symbols
+        get() = if (keyboardState.symbolsMode) {
+            if(keyboardState.emojiMode) KeyboardLayouts.emoji else KeyboardLayouts.symbols
         } else { KeyboardLayouts.layouts.getValue(currentLayout) }
     private val funKeyboard: List<List<Key>>
         get() = KeyboardLayouts.functions
@@ -145,7 +147,15 @@ class WearKeyboardService : InputMethodService() {
                         onKeyAction = ::handleKey,
                         onLongClick = ::showKeyboardPicker,
                         onSuggestionClick = { selectSuggestion(it) },
-                        onLangChange = { changeLanguage() },
+                        onLayoutChange = {
+                            if(!keyboardState.symbolsMode) {
+                                changeLanguage()
+                            } else {
+                                keyboardState = keyboardState.copy(
+                                    emojiMode = !keyboardState.emojiMode
+                                )
+                            }
+                        },
                         onCloseKeyboard = { requestHideSelf(0) },
                         onExtended = {
                             keyboardState = keyboardState.copy(
@@ -243,6 +253,7 @@ class WearKeyboardService : InputMethodService() {
     private fun handleKey(keyAction: KeyAction) {
         when (keyAction) {
             is KeyAction.Character -> handleCharacter(keyAction)
+            is KeyAction.Normal -> handleNormal(keyAction)
             is KeyAction.LongPress -> handleLongPress(keyAction)
             is KeyAction.Function -> handleFunction(keyAction)
         }
@@ -267,10 +278,6 @@ class WearKeyboardService : InputMethodService() {
         }
 
         handleMultiTap(action, connection)
-
-        if (manualMode && action.key.characters.none { it.isLetter() }) {
-            manualMode = false
-        }
     }
 
     private fun handleMultiTap(action: KeyAction.Character, connection: InputConnection) {
@@ -306,11 +313,15 @@ class WearKeyboardService : InputMethodService() {
                 keyboardState = keyboardState.copy(shift = shouldAutoShift())
             }
 
+            if (manualMode && action.character != '\'' && !action.character.isLetter()) { manualMode = false }
+
             lastT9Key = null
             lastT9PressTime = 0L
         }
 
-        suggestions = emptyList()
+        if (action.character != '\'') {
+            suggestions = emptyList()
+        }
     }
 
     private fun handleT9Input(key: Key) {
@@ -439,6 +450,16 @@ class WearKeyboardService : InputMethodService() {
         }
     }
 
+    private fun handleNormal(action: KeyAction.Normal) {
+        currentInputConnection?.commitText(action.key.code, 1)
+
+        suggestions = emptyList()
+
+        if (!keyboardState.capsLock) {
+            keyboardState = keyboardState.copy(shift = shouldAutoShift())
+        }
+    }
+
     private fun handleFunctionCharacter(action: KeyAction.Character, connection: InputConnection) {
         when (action.key.code) {
             MainFunctions.DELETE -> {
@@ -473,7 +494,7 @@ class WearKeyboardService : InputMethodService() {
 
         t9RequestId++
 
-        connection.deleteSurroundingText(1, 0)
+        deleteBeforeCursor(connection)
 
         updateText()
 
@@ -569,6 +590,24 @@ class WearKeyboardService : InputMethodService() {
 
                 updateText()
             }
+        }
+    }
+
+    private fun deleteBeforeCursor(connection: InputConnection) {
+        val text = connection
+            .getTextBeforeCursor(100, 0)
+            ?.toString() ?: return
+
+        if (text.isEmpty()) return
+
+        val iterator = BreakIterator.getCharacterInstance()
+        iterator.setText(text)
+        iterator.last()
+
+        val start = iterator.previous()
+
+        if (start >= 0) {
+            connection.deleteSurroundingText(text.length - start, 0)
         }
     }
 
@@ -700,6 +739,56 @@ class WearKeyboardService : InputMethodService() {
         connection.setSelection(newPosition, newPosition)
 
         updateText()
+
+        suggestionJob?.cancel()
+
+        if (!isT9Enabled() || manualMode) {
+            suggestions = emptyList()
+            return
+        }
+
+        suggestionJob = serviceScope.launch {
+            delay(250.milliseconds)
+            val currentWord = getCurrentWord()
+
+            if (currentWord.isEmpty()) {
+                suggestions = emptyList()
+                return@launch
+            }
+
+            val t9 = wordToT9(currentWord)
+
+            if (t9.isEmpty()) {
+                suggestions = emptyList()
+                return@launch
+            }
+
+            val database = dictionaryDatabase ?: return@launch
+
+            val result = withContext(Dispatchers.IO) {
+                database.dictionaryDao().getSuggestions(t9, t9PrefixEnd(t9)).map { it.word }
+            }
+            val finalResult = result.map {
+                when {
+                    keyboardState.capsLock -> {
+                        it.uppercase()
+                    }
+
+                    keyboardState.shift ||
+                            currentWord.firstOrNull()?.isUpperCase() == true -> {
+                        it.replaceFirstChar { char ->
+                            char.uppercase()
+                        }
+                    }
+
+                    else -> {
+                        it
+                    }
+                }
+            }
+
+            suggestions = finalResult
+        }
     }
 
     private fun showKeyboardPicker() {
@@ -781,9 +870,10 @@ class WearKeyboardService : InputMethodService() {
         val cursor = cursorPosition.coerceIn(0, text.length)
         var start = cursor
 
-        while (start > 0 && text[start - 1].isLetter()) {
-            start--
-        }
+        while (
+            start > 0 &&
+            (text[start - 1].isLetter() || text[start - 1] == '\'')
+        ) { start-- }
 
         return text.substring(start, cursor)
     }
@@ -832,20 +922,17 @@ class WearKeyboardService : InputMethodService() {
             KeyboardLayout.UKRAINIAN -> KeyboardLayouts.ukrainian
         }
 
-        val t9Map = layout
-            .flatten()
+        val t9Map = layout.flatten()
             .filter { it.type == KeyType.T9 }
             .flatMap { key ->
-                key.characters
-                    .filter { it.isLetter() }
+                key.characters.filter { it.isLetter() }
                     .map { it.lowercaseChar() to key.code.first() }
-            }
-            .toMap()
+            }.toMap()
 
         return buildString(word.length) {
             for (character in word) {
-                val digit = t9Map[character.lowercaseChar()]
-                    ?: return ""
+                if (character == '\'') continue
+                val digit = t9Map[character.lowercaseChar()] ?: return ""
                 append(digit)
             }
         }

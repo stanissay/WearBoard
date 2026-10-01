@@ -86,7 +86,7 @@ fun KeyboardScreen(
     onKeyAction: (KeyAction) -> Unit,
     onLongClick: () -> Unit,
     onSuggestionClick: (String) -> Unit,
-    onLangChange: () -> Unit,
+    onLayoutChange: () -> Unit,
     onCloseKeyboard: () -> Unit,
     onExtended: () -> Unit
 ) {
@@ -142,7 +142,7 @@ fun KeyboardScreen(
                             if (abs(totalDragDistanceX) > abs(totalDragDistanceY)) {
                                 if (totalDragDistanceX < -thresholdPx) {
                                     haptic.performHapticFeedback(HapticFeedbackType.ToggleOn)
-                                    onLangChange()
+                                    onLayoutChange()
                                 } else if (totalDragDistanceX > thresholdPx) {
                                     haptic.performHapticFeedback(HapticFeedbackType.ToggleOff)
                                     onCloseKeyboard()
@@ -167,7 +167,7 @@ fun KeyboardScreen(
             modifier = modifier.size(MainConstants.DISPLAY_SIZE)
                 .align(Alignment.Center)
                 .clip(CircleShape)
-                .background(brush = Brush.radialGradient(MainColors.GRAD))
+                .background(MaterialTheme.colors.onSurface)
                 .padding(MainConstants.THICKNESS),
             contentAlignment = Alignment.Center
         ) {
@@ -363,6 +363,11 @@ fun CircularKeypad(
     fun handleKey(key: Key) {
         if (key.type == KeyType.FUNCTION) {
             onKeyAction(KeyAction.Function(key))
+            return
+        }
+
+        if (key.type == KeyType.NORMAL) {
+            onKeyAction(KeyAction.Normal(key))
             return
         }
 

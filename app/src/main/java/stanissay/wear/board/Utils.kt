@@ -85,11 +85,10 @@ object MainColors {
     val SECOND_ACCENT = Color(0xFFD4A574)
     val WHITE = Color(0xFFCECECE)
     val GRAY = Color(0xFF616161)
+    val BORDER = Color(0xFF181818)
     val TRANSPARENT = Color(0x00000000)
 
-    val GRAD_START = Color(0xFF000000)
-    val GRAD_END = Color(0xFF181818)
-    val GRAD = listOf(GRAD_START, GRAD_END)
+    val GRAD = listOf(BACKGROUND, BORDER)
 }
 
 val TypographyStyle = Typography(
@@ -104,7 +103,8 @@ val ColorStyle = Colors(
     secondary = MainColors.SECOND_ACCENT,
     background = MainColors.BACKGROUND,
     surface = MainColors.GRAY,
-    onBackground = MainColors.WHITE
+    onBackground = MainColors.WHITE,
+    onSurface = MainColors.BORDER
 )
 
 val ShapesStyle = Shapes(
@@ -144,11 +144,13 @@ enum class KeyboardLayout {
 data class KeyboardState(
     val shift: Boolean = false,
     val capsLock: Boolean = false,
-    val symbolsMode: Boolean = false
+    val symbolsMode: Boolean = false,
+    val emojiMode: Boolean = false
 )
 
 sealed interface KeyAction {
     data class Character(val key: Key, val character: Char, val isMultiTap: Boolean) : KeyAction
+    data class Normal(val key: Key) : KeyAction
     data class LongPress(val key: Key) : KeyAction
     data class Function(val key: Key) : KeyAction
 }
@@ -158,8 +160,8 @@ object KeyboardLayouts {
         listOf(
             Key(
                 code = "0",
-                characters = listOf('-', '+', '*', '/', '=', '0'),
-                secondaryLabel = "-+*/=",
+                characters = listOf('\'', '-', '+', '*', '/', '=', '0'),
+                secondaryLabel = "'-+*/=",
                 type = KeyType.T9
             ),
             Key(
@@ -237,8 +239,8 @@ object KeyboardLayouts {
         listOf(
             Key(
                 code = "0",
-                characters = listOf('-', '+', '*', '/', '=', '0'),
-                secondaryLabel = "-+*/=",
+                characters = listOf('\'', '-', '+', '*', '/', '=', '0'),
+                secondaryLabel = "'-+*/=",
                 type = KeyType.T9
             ),
             Key(
@@ -340,8 +342,8 @@ object KeyboardLayouts {
             ),
             Key(
                 code = "\"",
-                characters = listOf('\'', '«', '»', '\"'),
-                secondaryLabel = "\'«»",
+                characters = listOf('«', '»', '\"'),
+                secondaryLabel = "«»",
                 type = KeyType.T9
             ),
             Key(
@@ -373,6 +375,63 @@ object KeyboardLayouts {
                 characters = listOf('±', '≈', '≠', '∞', '~'),
                 secondaryLabel = "±≈≠∞",
                 type = KeyType.T9
+            )
+        ),
+        listOf(
+            Key(
+                code = MainFunctions.SPACE,
+                icon = R.drawable.space,
+                type = KeyType.FUNCTION
+            ),
+            Key(
+                code = MainFunctions.DELETE,
+                icon = R.drawable.backspace,
+                type = KeyType.FUNCTION
+            )
+        )
+    )
+
+    val emoji = listOf(
+        listOf(
+            Key(
+                code = "😀",
+                type = KeyType.NORMAL
+            ),
+            Key(
+                code = "😂",
+                type = KeyType.NORMAL
+            ),
+            Key(
+                code = "😢",
+                type = KeyType.NORMAL
+            ),
+            Key(
+                code = "😡",
+                type = KeyType.NORMAL
+            ),
+            Key(
+                code = "❤️",
+                type = KeyType.NORMAL
+            ),
+            Key(
+                code = "👍",
+                type = KeyType.NORMAL
+            ),
+            Key(
+                code = "😐",
+                type = KeyType.NORMAL
+            ),
+            Key(
+                code = "😳",
+                type = KeyType.NORMAL
+            ),
+            Key(
+                code = "😎",
+                type = KeyType.NORMAL
+            ),
+            Key(
+                code = "🤔",
+                type = KeyType.NORMAL
             )
         ),
         listOf(

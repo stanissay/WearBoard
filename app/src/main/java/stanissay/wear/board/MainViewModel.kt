@@ -154,7 +154,8 @@ class MainViewModel (app: Application) : AndroidViewModel(app) {
                     reader.forEachLine { line ->
                         val parts = line.split('\t')
 
-                        val word = parts.firstOrNull()?.removePrefix("'")?.trim() ?: return@forEachLine
+                        val word = parts.firstOrNull()?.trim()
+                            ?.replace('’', '\'') ?: return@forEachLine
                         if (word.isEmpty()) return@forEachLine
 
                         val t9 = wordToT9(word, t9Map)
@@ -202,8 +203,8 @@ class MainViewModel (app: Application) : AndroidViewModel(app) {
     private fun wordToT9(word: String, t9Map: Map<Char, Char>): String {
         return buildString(word.length) {
             for (character in word) {
-                val digit = t9Map[character.lowercaseChar()]
-                    ?: return ""
+                if (character == '\'') continue
+                val digit = t9Map[character.lowercaseChar()] ?: return ""
                 append(digit)
             }
         }
