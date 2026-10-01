@@ -54,6 +54,7 @@ class WearKeyboardService : InputMethodService() {
     private var t9RequestId = 0L
     private var lastT9Key: Key? = null
     private var keyboardVisible = false
+    private var spaceAfterSuggestion = false
     private var manualMode by mutableStateOf(false)
     private val keyboard: List<List<Key>>
         get() = if (keyboardState.symbolsMode) {
@@ -61,12 +62,23 @@ class WearKeyboardService : InputMethodService() {
         } else { KeyboardLayouts.layouts.getValue(currentLayout) }
     private val funKeyboard: List<List<Key>>
         get() = KeyboardLayouts.functions
+    var enabledLanguages by mutableStateOf(
+        EnabledLanguages(
+            english = true,
+            ukrainian = true
+        )
+    )
+        private set
 
     override fun onCreate() {
         super.onCreate()
         lifecycleOwner = ImeLifecycleOwner()
         lifecycleOwner.onCreate()
         enableAllSubtypes()
+        enabledLanguages = EnabledLanguages(
+            english = isLanguageEnabled(KeyboardLayout.ENGLISH),
+            ukrainian = isLanguageEnabled(KeyboardLayout.UKRAINIAN)
+        )
     }
 
     override fun onEvaluateFullscreenMode(): Boolean {
@@ -193,10 +205,28 @@ class WearKeyboardService : InputMethodService() {
         val subtype = getSystemService(InputMethodManager::class.java)
             .currentInputMethodSubtype
 
-        currentLayout = when (subtype?.languageTag?.substringBefore("-")) {
+        val requestedLayout = when (subtype?.languageTag?.substringBefore("-")) {
             "uk" -> KeyboardLayout.UKRAINIAN
             "en" -> KeyboardLayout.ENGLISH
             else -> KeyboardLayout.ENGLISH
+        }
+
+        currentLayout = when {
+            isLanguageEnabled(requestedLayout) -> {
+                requestedLayout
+            }
+
+            isLanguageEnabled(KeyboardLayout.ENGLISH) -> {
+                KeyboardLayout.ENGLISH
+            }
+
+            isLanguageEnabled(KeyboardLayout.UKRAINIAN) -> {
+                KeyboardLayout.UKRAINIAN
+            }
+
+            else -> {
+                KeyboardLayout.ENGLISH
+            }
         }
 
         if (dictionaryDatabase == null && isT9Enabled()) {
@@ -230,6 +260,10 @@ class WearKeyboardService : InputMethodService() {
                 shift = shouldAutoShift()
             )
         }
+        enabledLanguages = EnabledLanguages(
+            english = isLanguageEnabled(KeyboardLayout.ENGLISH),
+            ukrainian = isLanguageEnabled(KeyboardLayout.UKRAINIAN)
+        )
     }
 
     override fun onFinishInput() {
@@ -300,8 +334,13 @@ class WearKeyboardService : InputMethodService() {
             action.character.uppercaseChar()
         } else { action.character.lowercaseChar() }
 
+        if (character in ".,?!;:" && spaceAfterSuggestion) {
+            connection.deleteSurroundingText(1, 0)
+        }
+
         connection.commitText(character.toString(), 1)
 
+        spaceAfterSuggestion = false
         lastT9Key = action.key
         lastT9PressTime = now
         t9TimeoutJob?.cancel()
@@ -342,6 +381,7 @@ class WearKeyboardService : InputMethodService() {
 
         val requestId = ++t9RequestId
 
+        spaceAfterSuggestion = false
         suggestionJob?.cancel()
 
         suggestionJob = serviceScope.launch(Dispatchers.IO) {
@@ -419,6 +459,8 @@ class WearKeyboardService : InputMethodService() {
     private fun handleLongPress(action: KeyAction.LongPress) {
         val connection = currentInputConnection ?: return
 
+        spaceAfterSuggestion = false
+
         when (action.key.type) {
             KeyType.T9,
             KeyType.NORMAL -> {
@@ -443,6 +485,8 @@ class WearKeyboardService : InputMethodService() {
 
         connection.commitText(character.toString(), 1)
 
+        spaceAfterSuggestion = false
+
         if (!keyboardState.capsLock) {
             keyboardState = keyboardState.copy(
                 shift = shouldAutoShift()
@@ -454,6 +498,7 @@ class WearKeyboardService : InputMethodService() {
         currentInputConnection?.commitText(action.key.code, 1)
 
         suggestions = emptyList()
+        spaceAfterSuggestion = false
 
         if (!keyboardState.capsLock) {
             keyboardState = keyboardState.copy(shift = shouldAutoShift())
@@ -461,6 +506,8 @@ class WearKeyboardService : InputMethodService() {
     }
 
     private fun handleFunctionCharacter(action: KeyAction.Character, connection: InputConnection) {
+        spaceAfterSuggestion = false
+
         when (action.key.code) {
             MainFunctions.DELETE -> {
                 connection.deleteSurroundingText(1, 0)
@@ -525,6 +572,7 @@ class WearKeyboardService : InputMethodService() {
 
         val requestId = t9RequestId
 
+        spaceAfterSuggestion = false
         suggestionJob?.cancel()
 
         suggestionJob = serviceScope.launch(Dispatchers.IO) {
@@ -594,10 +642,7 @@ class WearKeyboardService : InputMethodService() {
     }
 
     private fun deleteBeforeCursor(connection: InputConnection) {
-        val text = connection
-            .getTextBeforeCursor(100, 0)
-            ?.toString() ?: return
-
+        val text = connection.getTextBeforeCursor(100, 0)?.toString() ?: return
         if (text.isEmpty()) return
 
         val iterator = BreakIterator.getCharacterInstance()
@@ -615,6 +660,7 @@ class WearKeyboardService : InputMethodService() {
         currentInputConnection?.commitText(" ", 1)
         if (manualMode) manualMode = false
         suggestions = emptyList()
+        spaceAfterSuggestion = false
 
         if (!keyboardState.capsLock) {
             keyboardState = keyboardState.copy(
@@ -642,6 +688,7 @@ class WearKeyboardService : InputMethodService() {
 
         if (manualMode) manualMode = false
         suggestions = emptyList()
+        spaceAfterSuggestion = false
 
         if (!keyboardState.capsLock) {
             keyboardState = keyboardState.copy(
@@ -672,6 +719,7 @@ class WearKeyboardService : InputMethodService() {
         }
 
         lastShiftPressTime = now
+        spaceAfterSuggestion = false
     }
 
     @SuppressLint("WearRecents")
@@ -717,17 +765,51 @@ class WearKeyboardService : InputMethodService() {
         val info = imm.currentInputMethodInfo ?: return
         val currentSubtype = imm.currentInputMethodSubtype
         val currentLanguage = currentSubtype?.languageTag
+        spaceAfterSuggestion = false
 
-        val targetLanguage = when (currentLanguage) {
-            "en" -> "uk"
-            "uk" -> "en"
+        val currentLayout = when (currentLanguage) {
+            "en" -> KeyboardLayout.ENGLISH
+            "uk" -> KeyboardLayout.UKRAINIAN
             else -> return
         }
 
-        val subtypes = (0 until info.subtypeCount).map { info.getSubtypeAt(it) }
-        val subtype = subtypes.firstOrNull { it.languageTag == targetLanguage } ?: return
+        val targetLayout = when (currentLayout) {
+            KeyboardLayout.UKRAINIAN if enabledLanguages.english -> {
+                KeyboardLayout.ENGLISH
+            }
+            KeyboardLayout.ENGLISH if enabledLanguages.ukrainian -> {
+                KeyboardLayout.UKRAINIAN
+            }
+            else -> KeyboardLayout.ENGLISH
+        }
+
+        val targetLanguage = when (targetLayout) {
+            KeyboardLayout.ENGLISH -> "en"
+            KeyboardLayout.UKRAINIAN -> "uk"
+        }
+
+        val subtype = (0 until info.subtypeCount)
+            .map { info.getSubtypeAt(it) }
+            .firstOrNull {
+                it.languageTag.substringBefore("-") == targetLanguage
+            }
+            ?: return
+
 
         switchInputMethod(info.id, subtype)
+    }
+
+    private fun isLanguageEnabled(language: KeyboardLayout): Boolean {
+        return getSharedPreferences(
+            MainConstants.PREFS,
+            MODE_PRIVATE
+        ).getBoolean(
+            when (language) {
+                KeyboardLayout.ENGLISH -> MainConstants.ENGLISH_ENABLED
+                KeyboardLayout.UKRAINIAN -> MainConstants.UKRAINIAN_ENABLED
+            },
+            true
+        )
     }
 
     private fun moveCursor(direction: Int) {
@@ -740,12 +822,16 @@ class WearKeyboardService : InputMethodService() {
 
         updateText()
 
+        spaceAfterSuggestion = false
         suggestionJob?.cancel()
+        t9RequestId++
 
         if (!isT9Enabled() || manualMode) {
             suggestions = emptyList()
             return
         }
+
+        val requestId = t9RequestId
 
         suggestionJob = serviceScope.launch {
             delay(250.milliseconds)
@@ -787,11 +873,14 @@ class WearKeyboardService : InputMethodService() {
                 }
             }
 
+            if (requestId != t9RequestId) return@launch
+
             suggestions = finalResult
         }
     }
 
     private fun showKeyboardPicker() {
+        spaceAfterSuggestion = false
         getSystemService(InputMethodManager::class.java).showInputMethodPicker()
     }
 
@@ -803,6 +892,7 @@ class WearKeyboardService : InputMethodService() {
             connection.deleteSurroundingText(currentWord.length, 0)
         }
 
+        spaceAfterSuggestion = false
         suggestions = emptyList()
         lastT9Key = null
         lastT9PressTime = 0L
@@ -839,6 +929,7 @@ class WearKeyboardService : InputMethodService() {
             )
 
             withContext(Dispatchers.Main) {
+                spaceAfterSuggestion = false
                 manualMode = false
                 suggestions = emptyList()
             }
@@ -899,8 +990,9 @@ class WearKeyboardService : InputMethodService() {
             connection.deleteSurroundingText(currentWord.length, 0)
         }
 
-        connection.commitText(word, 1)
+        connection.commitText("$word ", 1)
 
+        spaceAfterSuggestion = true
         suggestions = emptyList()
 
         if (!keyboardState.capsLock) {

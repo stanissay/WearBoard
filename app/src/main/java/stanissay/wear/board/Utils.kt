@@ -34,6 +34,8 @@ import androidx.wear.compose.material3.lazy.transformedHeight
 
 object MainConstants {
     const val USE_T9 = "use_t9"
+    const val ENGLISH_ENABLED = "english_enabled"
+    const val UKRAINIAN_ENABLED = "ukrainian_enabled"
     const val PREFS = "voice_debug"
     const val RESULT_TEXT = "result_text"
     const val EXTRA_LANGUAGE = "voice_language"
@@ -140,6 +142,11 @@ enum class KeyboardLayout {
     ENGLISH,
     UKRAINIAN
 }
+
+data class EnabledLanguages(
+    val english: Boolean = true,
+    val ukrainian: Boolean = true
+)
 
 data class KeyboardState(
     val shift: Boolean = false,

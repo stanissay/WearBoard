@@ -47,6 +47,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MainTheme {
                 when {
+                    viewModel.showLanguages -> LanguagesScreen(viewModel)
                     viewModel.showDictionaries -> DictionariesScreen(viewModel)
                     viewModel.showPreview -> KeyboardPreview(viewModel)
                     else -> MainScreen(viewModel)
@@ -107,6 +108,17 @@ fun MainScreen(viewModel: MainViewModel) {
             ) {
                 ClickableBox(
                     modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE),
+                    onClick = { viewModel.showLanguages = true }
+                ) { MainText(text = stringResource(R.string.languages)) }
+            }
+        }
+        item {
+            MainCard(
+                transformationSpec = transformationSpec,
+                contentPadding = MainConstants.NULL_PADDING
+            ) {
+                ClickableBox(
+                    modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE),
                     onClick = { viewModel.showDictionaries = true }
                 ) { MainText(text = stringResource(R.string.dictionaries)) }
             }
@@ -139,6 +151,73 @@ fun MainScreen(viewModel: MainViewModel) {
                     text = stringResource(R.string.version) + " $versionName",
                     color = MaterialTheme.colors.surface
                 )
+            }
+        }
+        item { WearSpacer(transformationSpec) }
+    }
+}
+
+@Composable
+fun LanguagesScreen(viewModel: MainViewModel) {
+    val state = rememberTransformingLazyColumnState()
+    val transformationSpec = rememberTransformationSpec()
+
+    BackHandler { viewModel.showLanguages = false }
+
+    TransformingLazyColumn(
+        modifier = Modifier.fillMaxSize()
+            .background(MaterialTheme.colors.background),
+        state = state,
+        contentPadding = PaddingValues(MainConstants.MAIN_PADDING)
+    ) {
+        item { WearSpacer(transformationSpec) }
+        item {
+            Box(
+                modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE)
+                    .then(transformedItem(transformationSpec)),
+                contentAlignment = Alignment.Center
+            ) { TitleText(text = stringResource(R.string.languages)) }
+        }
+        item {
+            MainCard(
+                transformationSpec = transformationSpec,
+                contentPadding = MainConstants.NULL_PADDING,
+                borderColor = MaterialTheme.colors.surface,
+                containerColor = MainColors.TRANSPARENT
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    MainText(text = stringResource(R.string.keyboard_english))
+                    Switch(
+                        checked = true,
+                        onCheckedChange = {}
+                    )
+                }
+            }
+        }
+        item {
+            MainCard(
+                transformationSpec = transformationSpec,
+                contentPadding = MainConstants.NULL_PADDING,
+                borderColor = MaterialTheme.colors.surface,
+                containerColor = MainColors.TRANSPARENT
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(MainConstants.BASE_SIZE),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    MainText(text = stringResource(R.string.keyboard_ukrainian))
+                    Switch(
+                        checked = viewModel.enabledLanguages.ukrainian,
+                        onCheckedChange = {
+                            viewModel.setLanguageEnabled(KeyboardLayout.UKRAINIAN, it)
+                        }
+                    )
+                }
             }
         }
         item { WearSpacer(transformationSpec) }

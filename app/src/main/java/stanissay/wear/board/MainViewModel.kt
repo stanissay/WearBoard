@@ -40,7 +40,16 @@ import java.util.zip.ZipInputStream
 
 class MainViewModel (app: Application) : AndroidViewModel(app) {
     var showDictionaries by mutableStateOf(false)
+    var showLanguages by mutableStateOf(false)
     var showPreview by mutableStateOf(false)
+
+    var enabledLanguages by mutableStateOf(
+        EnabledLanguages(
+            english = isLanguageEnabled(KeyboardLayout.ENGLISH),
+            ukrainian = isLanguageEnabled(KeyboardLayout.UKRAINIAN)
+        )
+    )
+        private set
 
     fun downloadDictionary(language: KeyboardLayout) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -257,6 +266,49 @@ class MainViewModel (app: Application) : AndroidViewModel(app) {
             .edit {
                 putBoolean(MainConstants.USE_T9, value)
             }
+    }
+
+    fun isLanguageEnabled(language: KeyboardLayout): Boolean {
+        val prefs = getApplication<Application>()
+            .getSharedPreferences(
+                MainConstants.PREFS,
+                Context.MODE_PRIVATE
+            )
+
+        return prefs.getBoolean(
+            when (language) {
+                KeyboardLayout.ENGLISH -> MainConstants.ENGLISH_ENABLED
+                KeyboardLayout.UKRAINIAN -> MainConstants.UKRAINIAN_ENABLED
+            },
+            true
+        )
+    }
+    fun setLanguageEnabled(language: KeyboardLayout, enabled: Boolean) {
+        getApplication<Application>()
+            .getSharedPreferences(
+                MainConstants.PREFS,
+                Context.MODE_PRIVATE
+            )
+            .edit {
+                putBoolean(
+                    when (language) {
+                        KeyboardLayout.ENGLISH ->
+                            MainConstants.ENGLISH_ENABLED
+
+                        KeyboardLayout.UKRAINIAN ->
+                            MainConstants.UKRAINIAN_ENABLED
+                    },
+                    enabled
+                )
+            }
+
+        enabledLanguages = when (language) {
+            KeyboardLayout.ENGLISH ->
+                enabledLanguages.copy(english = enabled)
+
+            KeyboardLayout.UKRAINIAN ->
+                enabledLanguages.copy(ukrainian = enabled)
+        }
     }
 
     init {
