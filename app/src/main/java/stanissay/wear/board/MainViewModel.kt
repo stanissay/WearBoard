@@ -16,7 +16,7 @@
 package stanissay.wear.board
 
 import android.app.Application
-import android.content.Context
+import android.content.Context.MODE_PRIVATE
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -42,13 +42,7 @@ class MainViewModel (app: Application) : AndroidViewModel(app) {
     var showDictionaries by mutableStateOf(false)
     var showLanguages by mutableStateOf(false)
     var showPreview by mutableStateOf(false)
-
-    var enabledLanguages by mutableStateOf(
-        EnabledLanguages(
-            english = isLanguageEnabled(KeyboardLayout.ENGLISH),
-            ukrainian = isLanguageEnabled(KeyboardLayout.UKRAINIAN)
-        )
-    )
+    var enabledLanguages by mutableStateOf(KeyboardLayout.entries.toSet())
         private set
 
     fun downloadDictionary(language: KeyboardLayout) {
@@ -250,7 +244,7 @@ class MainViewModel (app: Application) : AndroidViewModel(app) {
 
     var useT9 by mutableStateOf(
         getApplication<Application>()
-            .getSharedPreferences(MainConstants.PREFS, Context.MODE_PRIVATE)
+            .getSharedPreferences(MainConstants.PREFS, MODE_PRIVATE)
             .getBoolean(MainConstants.USE_T9, true)
     )
         private set
@@ -259,59 +253,39 @@ class MainViewModel (app: Application) : AndroidViewModel(app) {
         useT9 = value
 
         getApplication<Application>()
-            .getSharedPreferences(
-                MainConstants.PREFS,
-                Context.MODE_PRIVATE
-            )
-            .edit {
-                putBoolean(MainConstants.USE_T9, value)
-            }
+            .getSharedPreferences(MainConstants.PREFS, MODE_PRIVATE)
+            .edit { putBoolean(MainConstants.USE_T9, value) }
     }
 
-    fun isLanguageEnabled(language: KeyboardLayout): Boolean {
-        val prefs = getApplication<Application>()
-            .getSharedPreferences(
-                MainConstants.PREFS,
-                Context.MODE_PRIVATE
-            )
-
-        return prefs.getBoolean(
-            when (language) {
-                KeyboardLayout.ENGLISH -> MainConstants.ENGLISH_ENABLED
-                KeyboardLayout.UKRAINIAN -> MainConstants.UKRAINIAN_ENABLED
-            },
-            true
-        )
-    }
     fun setLanguageEnabled(language: KeyboardLayout, enabled: Boolean) {
-        getApplication<Application>()
-            .getSharedPreferences(
-                MainConstants.PREFS,
-                Context.MODE_PRIVATE
-            )
-            .edit {
-                putBoolean(
-                    when (language) {
-                        KeyboardLayout.ENGLISH ->
-                            MainConstants.ENGLISH_ENABLED
-
-                        KeyboardLayout.UKRAINIAN ->
-                            MainConstants.UKRAINIAN_ENABLED
-                    },
-                    enabled
-                )
-            }
-
-        enabledLanguages = when (language) {
-            KeyboardLayout.ENGLISH ->
-                enabledLanguages.copy(english = enabled)
-
-            KeyboardLayout.UKRAINIAN ->
-                enabledLanguages.copy(ukrainian = enabled)
+        if (!enabled && enabledLanguages.size == 1) {
+            return
         }
+
+        enabledLanguages = if (enabled) {
+            enabledLanguages + language
+        } else {
+            enabledLanguages - language
+        }
+
+        getApplication<Application>()
+            .getSharedPreferences(MainConstants.PREFS, MODE_PRIVATE)
+            .edit {
+                putBoolean("language_enabled_${language.name}", enabled)
+            }
+    }
+
+    fun getEnabledLanguages() {
+        val prefs = getApplication<Application>().getSharedPreferences(MainConstants.PREFS, MODE_PRIVATE)
+
+        enabledLanguages = KeyboardLayout.entries
+            .filter { language ->
+                prefs.getBoolean("language_enabled_${language.name}", true)
+            }.toSet()
     }
 
     init {
+        getEnabledLanguages()
         checkDictionaries()
     }
 }

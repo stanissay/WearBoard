@@ -62,12 +62,7 @@ class WearKeyboardService : InputMethodService() {
         } else { KeyboardLayouts.layouts.getValue(currentLayout) }
     private val funKeyboard: List<List<Key>>
         get() = KeyboardLayouts.functions
-    var enabledLanguages by mutableStateOf(
-        EnabledLanguages(
-            english = true,
-            ukrainian = true
-        )
-    )
+    var enabledLanguages by mutableStateOf(KeyboardLayout.entries.toSet())
         private set
 
     override fun onCreate() {
@@ -75,10 +70,7 @@ class WearKeyboardService : InputMethodService() {
         lifecycleOwner = ImeLifecycleOwner()
         lifecycleOwner.onCreate()
         enableAllSubtypes()
-        enabledLanguages = EnabledLanguages(
-            english = isLanguageEnabled(KeyboardLayout.ENGLISH),
-            ukrainian = isLanguageEnabled(KeyboardLayout.UKRAINIAN)
-        )
+        enabledLanguages = KeyboardLayout.entries.filter { isLanguageEnabled(it) }.toSet()
     }
 
     override fun onEvaluateFullscreenMode(): Boolean {
@@ -260,10 +252,7 @@ class WearKeyboardService : InputMethodService() {
                 shift = shouldAutoShift()
             )
         }
-        enabledLanguages = EnabledLanguages(
-            english = isLanguageEnabled(KeyboardLayout.ENGLISH),
-            ukrainian = isLanguageEnabled(KeyboardLayout.UKRAINIAN)
-        )
+        enabledLanguages = KeyboardLayout.entries.filter { isLanguageEnabled(it) }.toSet()
     }
 
     override fun onFinishInput() {
@@ -763,52 +752,31 @@ class WearKeyboardService : InputMethodService() {
     private fun changeLanguage() {
         val imm = getSystemService(InputMethodManager::class.java)
         val info = imm.currentInputMethodInfo ?: return
-        val currentSubtype = imm.currentInputMethodSubtype
-        val currentLanguage = currentSubtype?.languageTag
+        val currentLanguage = imm.currentInputMethodSubtype
+            ?.languageTag?.substringBefore("-") ?: return
+
         spaceAfterSuggestion = false
 
-        val currentLayout = when (currentLanguage) {
-            "en" -> KeyboardLayout.ENGLISH
-            "uk" -> KeyboardLayout.UKRAINIAN
-            else -> return
-        }
+        val languages = enabledLanguages.toList()
 
-        val targetLayout = when (currentLayout) {
-            KeyboardLayout.UKRAINIAN if enabledLanguages.english -> {
-                KeyboardLayout.ENGLISH
-            }
-            KeyboardLayout.ENGLISH if enabledLanguages.ukrainian -> {
-                KeyboardLayout.UKRAINIAN
-            }
-            else -> KeyboardLayout.ENGLISH
-        }
+        if (languages.size < 2) return
 
-        val targetLanguage = when (targetLayout) {
-            KeyboardLayout.ENGLISH -> "en"
-            KeyboardLayout.UKRAINIAN -> "uk"
-        }
-
+        val currentLayout = languages.firstOrNull { it.languageTag == currentLanguage } ?: return
+        val currentIndex = languages.indexOf(currentLayout)
+        val targetLayout = languages[(currentIndex + 1) % languages.size]
         val subtype = (0 until info.subtypeCount)
             .map { info.getSubtypeAt(it) }
             .firstOrNull {
-                it.languageTag.substringBefore("-") == targetLanguage
-            }
-            ?: return
-
+                it.languageTag.substringBefore("-") ==
+                        targetLayout.languageTag
+            } ?: return
 
         switchInputMethod(info.id, subtype)
     }
 
     private fun isLanguageEnabled(language: KeyboardLayout): Boolean {
-        return getSharedPreferences(
-            MainConstants.PREFS,
-            MODE_PRIVATE
-        ).getBoolean(
-            when (language) {
-                KeyboardLayout.ENGLISH -> MainConstants.ENGLISH_ENABLED
-                KeyboardLayout.UKRAINIAN -> MainConstants.UKRAINIAN_ENABLED
-            },
-            true
+        return getSharedPreferences(MainConstants.PREFS, MODE_PRIVATE).getBoolean(
+            "language_enabled_${language.name}", true
         )
     }
 
