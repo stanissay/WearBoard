@@ -194,8 +194,10 @@ fun LanguagesScreen(viewModel: MainViewModel) {
                 ) {
                     MainText(text = stringResource(R.string.keyboard_english))
                     Switch(
-                        checked = true,
-                        onCheckedChange = {}
+                        checked = viewModel.enabledLanguages.english,
+                        onCheckedChange = {
+                            viewModel.setLanguageEnabled(KeyboardLayout.ENGLISH, it)
+                        }
                     )
                 }
             }
