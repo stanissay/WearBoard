@@ -36,6 +36,7 @@ import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Switch
+import androidx.wear.compose.material.TimeText
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 
 class MainActivity : ComponentActivity() {
@@ -52,6 +53,7 @@ class MainActivity : ComponentActivity() {
                     viewModel.showPreview -> KeyboardPreview(viewModel)
                     else -> MainScreen(viewModel)
                 }
+                TimeText()
             }
         }
     }
