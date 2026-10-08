@@ -382,54 +382,12 @@ class WearKeyboardService : InputMethodService() {
 
                 val connection = currentInputConnection ?: return@withContext
                 val updatedWord = getCurrentWord()
-                val finalResult = result.map {
-                    when {
-                        keyboardState.capsLock -> {
-                            it.uppercase()
-                        }
-
-                        keyboardState.shift ||
-                                currentWord.firstOrNull()?.isUpperCase() == true -> {
-                            it.replaceFirstChar { char ->
-                                char.uppercase()
-                            }
-                        }
-
-                        else -> {
-                            it
-                        }
-                    }
-                }
-
-                val word = finalResult.firstOrNull {
-                    it.length == t9.length
-                }
+                val finalResult = result.map { it.applyKeyboardCase(keyboardState) }
+                val word = finalResult.firstOrNull { it.length == t9.length }
 
                 if (word != null) {
-                    val newWord = when {
-                        keyboardState.capsLock -> {
-                            word.uppercase()
-                        }
-
-                        keyboardState.shift -> {
-                            word.replaceFirstChar {
-                                it.uppercase()
-                            }
-                        }
-
-                        updatedWord.firstOrNull()?.isUpperCase() == true -> {
-                            word.replaceFirstChar {
-                                it.uppercase()
-                            }
-                        }
-
-                        else -> {
-                            word
-                        }
-                    }
-
                     connection.deleteSurroundingText(updatedWord.length, 0)
-                    connection.commitText(newWord, 1)
+                    connection.commitText(word, 1)
 
                     suggestions = finalResult.filter { it != word }
                 } else {
@@ -573,53 +531,12 @@ class WearKeyboardService : InputMethodService() {
 
                 val connection = currentInputConnection ?: return@withContext
                 val currentWord = getCurrentWord()
-                val finalResult = result.map {
-                    when {
-                        keyboardState.capsLock -> {
-                            it.uppercase()
-                        }
-
-                        keyboardState.shift ||
-                                currentWord.firstOrNull()?.isUpperCase() == true -> {
-                            it.replaceFirstChar { char ->
-                                char.uppercase()
-                            }
-                        }
-
-                        else -> {
-                            it
-                        }
-                    }
-                }
+                val finalResult = result.map { it.applyKeyboardCase(keyboardState) }
                 val word = finalResult.firstOrNull { it.length == currentWord.length }
 
                 if (word != null) {
-                    val newWord = when {
-                        keyboardState.capsLock -> {
-                            word.uppercase()
-                        }
-
-                        keyboardState.shift -> {
-                            word.replaceFirstChar {
-                                it.uppercase()
-                            }
-                        }
-
-                        currentWord.firstOrNull()?.isUpperCase() == true -> {
-                            word.replaceFirstChar {
-                                it.uppercase()
-                            }
-                        }
-
-                        else -> {
-                            word
-                        }
-                    }
-
                     connection.deleteSurroundingText(currentWord.length, 0)
-
-                    connection.commitText(newWord, 1)
-
+                    connection.commitText(word, 1)
                     suggestions = finalResult.filter { it != word }
                 } else {
                     suggestions = finalResult
@@ -1005,5 +922,17 @@ class WearKeyboardService : InputMethodService() {
         val text = beforeCursor.trimEnd()
 
         return text.isEmpty() || text.last() == '.' || text.last() == '!' || text.last() == '?'
+    }
+
+    private fun String.applyKeyboardCase(keyboardState: KeyboardState): String {
+        return when {
+            keyboardState.capsLock -> {
+                uppercase()
+            }
+            keyboardState.shift && this == lowercase() -> {
+                replaceFirstChar { it.uppercase() }
+            }
+            else -> this
+        }
     }
 }
