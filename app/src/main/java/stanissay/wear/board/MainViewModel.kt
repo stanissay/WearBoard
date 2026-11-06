@@ -99,7 +99,8 @@ class MainViewModel (app: Application) : AndroidViewModel(app) {
                 importDictionary(language)
 
                 setDictionaryStatus(language, DictionaryStatus.LOADED)
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                e.printStackTrace()
                 setDictionaryStatus(language, DictionaryStatus.ERROR)
             }
         }
@@ -186,6 +187,7 @@ class MainViewModel (app: Application) : AndroidViewModel(app) {
 
             csvFile.delete()
             zipFile.delete()
+        } catch (e: Exception) { e.printStackTrace()
         } finally { database.close() }
     }
 

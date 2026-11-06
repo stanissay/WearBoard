@@ -35,11 +35,13 @@ import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import kotlinx.coroutines.*
 import java.text.BreakIterator
+import kotlin.collections.flatten
+import kotlin.text.first
 import kotlin.time.Duration.Companion.milliseconds
 
 class WearKeyboardService : InputMethodService() {
     private lateinit var lifecycleOwner: ImeLifecycleOwner
-    private val serviceScope = CoroutineScope(Job() + Dispatchers.Main)
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main + CoroutineExceptionHandler { _, e -> e.printStackTrace() })
     private var suggestionJob: Job? = null
     private var t9TimeoutJob: Job? = null
     private var currentLayout by mutableStateOf(KeyboardLayout.ENGLISH)
@@ -56,6 +58,9 @@ class WearKeyboardService : InputMethodService() {
     private var keyboardVisible = false
     private var spaceAfterSuggestion = false
     private var manualMode by mutableStateOf(false)
+    private var t9Enabled by mutableStateOf(true)
+    private var wordCaseMode = CaseMode.LOWER
+    private val t9Maps = mutableMapOf<KeyboardLayout, Map<Char, Char>>()
     private val keyboard: List<List<Key>>
         get() = if (keyboardState.symbolsMode) {
             if(keyboardState.emojiMode) KeyboardLayouts.emoji else KeyboardLayouts.symbols
@@ -80,13 +85,11 @@ class WearKeyboardService : InputMethodService() {
     override fun onCurrentInputMethodSubtypeChanged(subtype: InputMethodSubtype) {
         super.onCurrentInputMethodSubtypeChanged(subtype)
 
-        currentLayout = when (subtype.languageTag.substringBefore("-")) {
-            "en" -> KeyboardLayout.ENGLISH
-            "uk" -> KeyboardLayout.UKRAINIAN
-            else -> KeyboardLayout.ENGLISH
-        }
+        currentLayout = layoutFor(subtype) ?: KeyboardLayout.ENGLISH
 
         if(isT9Enabled()) {
+            suggestionJob?.cancel()
+            t9RequestId++
             dictionaryDatabase?.close()
             dictionaryDatabase = createDictionaryDatabase(currentLayout, applicationContext)
 
@@ -111,17 +114,10 @@ class WearKeyboardService : InputMethodService() {
 
             val requestId = ++t9RequestId
 
-            suggestionJob?.cancel()
-
-            suggestionJob = serviceScope.launch(Dispatchers.IO) {
-                val database = dictionaryDatabase ?: return@launch
-                val result = database.dictionaryDao().getSuggestions(t9, t9PrefixEnd(t9)).map { it.word }
-
-                withContext(Dispatchers.Main) {
-                    if (requestId != t9RequestId) { return@withContext }
-
-                    suggestions = result
-                }
+            suggestionJob = serviceScope.launch {
+                val result = querySuggestions(t9)
+                if (requestId != t9RequestId) return@launch
+                suggestions = result
             }
         }
     }
@@ -194,32 +190,19 @@ class WearKeyboardService : InputMethodService() {
     override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
 
-        val subtype = getSystemService(InputMethodManager::class.java)
-            .currentInputMethodSubtype
+        loadT9Enabled()
 
-        val requestedLayout = when (subtype?.languageTag?.substringBefore("-")) {
-            "uk" -> KeyboardLayout.UKRAINIAN
-            "en" -> KeyboardLayout.ENGLISH
-            else -> KeyboardLayout.ENGLISH
+        if(!restarting) {
+            suggestions = emptyList()
+            manualMode = false; spaceAfterSuggestion = false
+            lastT9Key = null; wordCaseMode = CaseMode.LOWER
+            suggestionJob?.cancel(); t9TimeoutJob?.cancel()
         }
 
-        currentLayout = when {
-            isLanguageEnabled(requestedLayout) -> {
-                requestedLayout
-            }
+        val requested = layoutFor(getSystemService(InputMethodManager::class.java).currentInputMethodSubtype)
 
-            isLanguageEnabled(KeyboardLayout.ENGLISH) -> {
-                KeyboardLayout.ENGLISH
-            }
-
-            isLanguageEnabled(KeyboardLayout.UKRAINIAN) -> {
-                KeyboardLayout.UKRAINIAN
-            }
-
-            else -> {
-                KeyboardLayout.ENGLISH
-            }
-        }
+        currentLayout = listOfNotNull(requested, KeyboardLayout.ENGLISH, KeyboardLayout.UKRAINIAN)
+            .firstOrNull { isLanguageEnabled(it) } ?: KeyboardLayout.ENGLISH
 
         if (dictionaryDatabase == null && isT9Enabled()) {
             dictionaryDatabase = createDictionaryDatabase(currentLayout, applicationContext)
@@ -255,10 +238,15 @@ class WearKeyboardService : InputMethodService() {
         enabledLanguages = KeyboardLayout.entries.filter { isLanguageEnabled(it) }.toSet()
     }
 
+    override fun onUpdateSelection(oldSelStart: Int, oldSelEnd: Int, newSelStart: Int, newSelEnd: Int, candidatesStart: Int, candidatesEnd: Int) {
+        super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+        updateText()
+        if (getCurrentWord().isEmpty() && suggestions.isNotEmpty()) { suggestions = emptyList() }
+    }
+
     override fun onFinishInput() {
         super.onFinishInput()
-        dictionaryDatabase?.close()
-        dictionaryDatabase = null
+        suggestionJob?.cancel(); t9TimeoutJob?.cancel(); t9RequestId++
     }
 
     override fun onFinishInputView(finishing: Boolean) {
@@ -269,8 +257,10 @@ class WearKeyboardService : InputMethodService() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
+        serviceScope.cancel()
+        dictionaryDatabase?.close(); dictionaryDatabase = null
         lifecycleOwner.onDestroy()
+        super.onDestroy()
     }
 
     private fun handleKey(keyAction: KeyAction) {
@@ -290,7 +280,7 @@ class WearKeyboardService : InputMethodService() {
         when (action.key.type) {
             KeyType.T9 -> handleT9Character(action, connection)
             KeyType.NORMAL -> handleNormalCharacter(action, connection)
-            KeyType.FUNCTION -> handleFunctionCharacter(action, connection)
+            KeyType.FUNCTION -> handleFunctionCharacter(action)
         }
     }
 
@@ -355,52 +345,33 @@ class WearKeyboardService : InputMethodService() {
     private fun handleT9Input(key: Key) {
         val connection = currentInputConnection ?: return
         val currentWord = getCurrentWord()
-        val t9 = wordToT9(currentWord) + key.code
+        val isFirstLetter = currentWord.isEmpty()
+
+        if (isFirstLetter) {
+            wordCaseMode = when {
+                keyboardState.capsLock -> CaseMode.ALL
+                keyboardState.shift -> CaseMode.FIRST
+                else -> CaseMode.LOWER
+            }
+        }
         val firstCharacter = key.characters.firstOrNull() ?: return
 
-        val character = when {
-            keyboardState.capsLock -> firstCharacter.uppercaseChar()
-            keyboardState.shift -> firstCharacter.uppercaseChar()
-            else -> firstCharacter.lowercaseChar()
+        val character = when (wordCaseMode) {
+            CaseMode.ALL -> firstCharacter.uppercaseChar()
+            CaseMode.FIRST -> if (isFirstLetter) firstCharacter.uppercaseChar() else firstCharacter.lowercaseChar()
+            CaseMode.LOWER -> firstCharacter.lowercaseChar()
         }
 
         connection.commitText(character.toString(), 1)
 
-        updateText()
-
-        val requestId = ++t9RequestId
-
-        spaceAfterSuggestion = false
-        suggestionJob?.cancel()
-
-        suggestionJob = serviceScope.launch(Dispatchers.IO) {
-            val database = dictionaryDatabase ?: return@launch
-            val result = database.dictionaryDao().getSuggestions(t9, t9PrefixEnd(t9)).map { it.word }
-
-            withContext(Dispatchers.Main) {
-                if (requestId != t9RequestId) { return@withContext }
-
-                val connection = currentInputConnection ?: return@withContext
-                val updatedWord = getCurrentWord()
-                val finalResult = result.map { it.applyKeyboardCase(keyboardState) }
-                val word = finalResult.firstOrNull { it.length == t9.length }
-
-                if (word != null) {
-                    connection.deleteSurroundingText(updatedWord.length, 0)
-                    connection.commitText(word, 1)
-
-                    suggestions = finalResult.filter { it != word }
-                } else {
-                    suggestions = finalResult
-                }
-
-                if (keyboardState.shift && !keyboardState.capsLock) {
-                    keyboardState = keyboardState.copy(shift = shouldAutoShift())
-                }
-
-                updateText()
-            }
+        if (keyboardState.shift && !keyboardState.capsLock) {
+            keyboardState = keyboardState.copy(shift = shouldAutoShift())
         }
+
+        val fullT9 = wordToT9(getCurrentWord() + getWordTail())
+        if (fullT9.isEmpty()) { suggestions = emptyList(); return }
+
+        refreshT9(fullT9)
     }
 
     private fun handleLongPress(action: KeyAction.LongPress) {
@@ -452,21 +423,12 @@ class WearKeyboardService : InputMethodService() {
         }
     }
 
-    private fun handleFunctionCharacter(action: KeyAction.Character, connection: InputConnection) {
+    private fun handleFunctionCharacter(action: KeyAction.Character) {
         spaceAfterSuggestion = false
 
         when (action.key.code) {
-            MainFunctions.DELETE -> {
-                connection.deleteSurroundingText(1, 0)
-            }
-
-            MainFunctions.SPACE -> {
-                connection.commitText(" ", 1)
-
-                if (!keyboardState.capsLock) {
-                    keyboardState = keyboardState.copy(shift = false)
-                }
-            }
+            MainFunctions.DELETE -> handleDelete()
+            MainFunctions.SPACE -> handleSpace()
         }
     }
 
@@ -486,11 +448,11 @@ class WearKeyboardService : InputMethodService() {
     private fun handleDelete() {
         val connection = currentInputConnection ?: return
 
+        val keepWord = spaceAfterSuggestion
+        spaceAfterSuggestion = false
         t9RequestId++
 
         deleteBeforeCursor(connection)
-
-        updateText()
 
         if (!keyboardState.capsLock) {
             keyboardState = keyboardState.copy(
@@ -517,37 +479,16 @@ class WearKeyboardService : InputMethodService() {
             return
         }
 
-        val requestId = t9RequestId
+        val full = currentWord + getWordTail()
+        val fullT9 = wordToT9(full)
+        if (fullT9.isEmpty()) { suggestions = emptyList(); return }
 
-        spaceAfterSuggestion = false
-        suggestionJob?.cancel()
-
-        suggestionJob = serviceScope.launch(Dispatchers.IO) {
-            val database = dictionaryDatabase ?: return@launch
-            val result = database.dictionaryDao().getSuggestions(t9, t9PrefixEnd(t9)).map { it.word }
-
-            withContext(Dispatchers.Main) {
-                if (requestId != t9RequestId) { return@withContext }
-
-                val connection = currentInputConnection ?: return@withContext
-                val currentWord = getCurrentWord()
-                val finalResult = result.map { it.applyKeyboardCase(keyboardState) }
-                val word = finalResult.firstOrNull { it.length == currentWord.length }
-
-                if (word != null) {
-                    connection.deleteSurroundingText(currentWord.length, 0)
-                    connection.commitText(word, 1)
-                    suggestions = finalResult.filter { it != word }
-                } else {
-                    suggestions = finalResult
-                }
-
-                updateText()
-            }
-        }
+        wordCaseMode = detectCaseMode(full)
+        refreshT9(fullT9, keepCurrent = keepWord)
     }
 
     private fun deleteBeforeCursor(connection: InputConnection) {
+        if (!connection.getSelectedText(0).isNullOrEmpty()) { connection.commitText("", 1); return }
         val text = connection.getTextBeforeCursor(100, 0)?.toString() ?: return
         if (text.isEmpty()) return
 
@@ -576,21 +517,9 @@ class WearKeyboardService : InputMethodService() {
     }
 
     private fun handleEnter() {
-        val connection = currentInputConnection ?: return
+        currentInputConnection ?: return
 
-        connection.sendKeyEvent(
-            KeyEvent(
-                KeyEvent.ACTION_DOWN,
-                KeyEvent.KEYCODE_ENTER
-            )
-        )
-
-        connection.sendKeyEvent(
-            KeyEvent(
-                KeyEvent.ACTION_UP,
-                KeyEvent.KEYCODE_ENTER
-            )
-        )
+        if (!sendDefaultEditorAction(true)) sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
 
         if (manualMode) manualMode = false
         suggestions = emptyList()
@@ -605,27 +534,54 @@ class WearKeyboardService : InputMethodService() {
 
     private fun handleShift() {
         val now = System.currentTimeMillis()
-
-        keyboardState = if (keyboardState.capsLock) {
-            keyboardState.copy(
-                shift = shouldAutoShift(),
-                capsLock = false
-            )
-        } else if (
-            now - lastShiftPressTime <= MainConstants.DOUBLE_TAP_THRESHOLD
-        ) {
-            keyboardState.copy(
-                shift = false,
-                capsLock = true
-            )
-        } else {
-            keyboardState.copy(
-                shift = !keyboardState.shift
-            )
-        }
-
+        val isDoubleTap = now - lastShiftPressTime <= MainConstants.DOUBLE_TAP_THRESHOLD
         lastShiftPressTime = now
         spaceAfterSuggestion = false
+        if (applyShiftToCurrentWord(isDoubleTap)) return
+
+        keyboardState = if (keyboardState.capsLock) {
+            keyboardState.copy(shift = shouldAutoShift(), capsLock = false)
+        } else if (isDoubleTap) {
+            keyboardState.copy(shift = false, capsLock = true)
+        } else {
+            keyboardState.copy(shift = !keyboardState.shift)
+        }
+    }
+
+    private fun refreshT9(t9: String, keepCurrent: Boolean = false, autoReplace: Boolean = true) {
+        val requestId = ++t9RequestId
+        spaceAfterSuggestion = false
+        suggestionJob?.cancel()
+
+        suggestionJob = serviceScope.launch {
+            val result = querySuggestions(t9)
+            if (requestId != t9RequestId) return@launch
+            val connection = currentInputConnection ?: return@launch
+
+            val before = getCurrentWord()
+            val tail = getWordTail()
+            val current = before + tail
+            val cased = result.map { it.applyCase(wordCaseMode) }
+
+            if (!autoReplace) {
+                suggestions = cased.filter { it != current }
+                updateText()
+                return@launch
+            }
+
+            val exact = if (keepCurrent) cased.firstOrNull { it.equals(current, ignoreCase = true) } else null
+            val best = exact ?: cased.firstOrNull { it.t9Length() == t9.length }
+
+            if (best != null) {
+                if (best != current) replaceWholeWord(connection, before, tail, best)
+                suggestions = cased.filter { it != best }
+            } else {
+                val recased = current.lowercase().applyCase(wordCaseMode)
+                if (recased != current) replaceWholeWord(connection, before, tail, recased)
+                suggestions = cased
+            }
+            updateText()
+        }
     }
 
     @SuppressLint("WearRecents")
@@ -669,24 +625,19 @@ class WearKeyboardService : InputMethodService() {
     private fun changeLanguage() {
         val imm = getSystemService(InputMethodManager::class.java)
         val info = imm.currentInputMethodInfo ?: return
-        val currentLanguage = imm.currentInputMethodSubtype
-            ?.languageTag?.substringBefore("-") ?: return
+        val activeLayout = layoutFor(imm.currentInputMethodSubtype) ?: return
 
         spaceAfterSuggestion = false
 
         val languages = enabledLanguages.toList()
-
         if (languages.size < 2) return
 
-        val currentLayout = languages.firstOrNull { it.languageTag == currentLanguage } ?: return
-        val currentIndex = languages.indexOf(currentLayout)
-        val targetLayout = languages[(currentIndex + 1) % languages.size]
-        val subtype = (0 until info.subtypeCount)
-            .map { info.getSubtypeAt(it) }
-            .firstOrNull {
-                it.languageTag.substringBefore("-") ==
-                        targetLayout.languageTag
-            } ?: return
+        val currentIndex = languages.indexOf(activeLayout)
+        if (currentIndex < 0) return
+        val target = languages[(currentIndex + 1) % languages.size]
+
+        val subtype = (0 until info.subtypeCount).map { info.getSubtypeAt(it) }
+            .firstOrNull { layoutFor(it) == target } ?: return
 
         switchInputMethod(info.id, subtype)
     }
@@ -699,13 +650,16 @@ class WearKeyboardService : InputMethodService() {
 
     private fun moveCursor(direction: Int) {
         val connection = currentInputConnection ?: return
-        val newPosition = (cursorPosition + direction).coerceIn(0, currentText.length)
-
-        if (newPosition == cursorPosition) return
+        val text = currentText
+        val position = cursorPosition.coerceIn(0, text.length)
+        val iterator = BreakIterator.getCharacterInstance().apply { setText(text) }
+        val newPosition = if (direction > 0) iterator.following(position) else iterator.preceding(position)
+        if (newPosition == BreakIterator.DONE || newPosition == position) return
 
         connection.setSelection(newPosition, newPosition)
-
         updateText()
+
+        getCurrentWord().takeIf { it.isNotEmpty() }?.let { wordCaseMode = detectCaseMode(it) }
 
         spaceAfterSuggestion = false
         suggestionJob?.cancel()
@@ -717,50 +671,25 @@ class WearKeyboardService : InputMethodService() {
         }
 
         val requestId = t9RequestId
+        val full = getFullWord()
+
+        if (full.isEmpty()) {
+            suggestions = emptyList()
+            return
+        }
+
+        wordCaseMode = detectCaseMode(full)
 
         suggestionJob = serviceScope.launch {
             delay(250.milliseconds)
-            val currentWord = getCurrentWord()
 
-            if (currentWord.isEmpty()) {
-                suggestions = emptyList()
-                return@launch
-            }
+            val t9 = wordToT9(full)
+            if (t9.isEmpty()) { suggestions = emptyList(); return@launch }
 
-            val t9 = wordToT9(currentWord)
-
-            if (t9.isEmpty()) {
-                suggestions = emptyList()
-                return@launch
-            }
-
-            val database = dictionaryDatabase ?: return@launch
-
-            val result = withContext(Dispatchers.IO) {
-                database.dictionaryDao().getSuggestions(t9, t9PrefixEnd(t9)).map { it.word }
-            }
-            val finalResult = result.map {
-                when {
-                    keyboardState.capsLock -> {
-                        it.uppercase()
-                    }
-
-                    keyboardState.shift ||
-                            currentWord.firstOrNull()?.isUpperCase() == true -> {
-                        it.replaceFirstChar { char ->
-                            char.uppercase()
-                        }
-                    }
-
-                    else -> {
-                        it
-                    }
-                }
-            }
-
+            val result = querySuggestions(t9)
             if (requestId != t9RequestId) return@launch
 
-            suggestions = finalResult
+            suggestions = result.map { it.applyCase(wordCaseMode) }.filter { it != full }
         }
     }
 
@@ -833,25 +762,22 @@ class WearKeyboardService : InputMethodService() {
             currentInputConnection?.commitText(result, 1)
 
             updateText()
+
+            suggestions = emptyList()
+            spaceAfterSuggestion = false
+            shouldAutoShift()
         }
     }
 
-    private fun isT9Enabled(): Boolean {
-        return getSharedPreferences(MainConstants.PREFS, MODE_PRIVATE)
-            .getBoolean(MainConstants.USE_T9, true)
-    }
+    private fun loadT9Enabled() { t9Enabled = getSharedPreferences(MainConstants.PREFS, MODE_PRIVATE).getBoolean(MainConstants.USE_T9, true) }
+
+    private fun isT9Enabled(): Boolean = t9Enabled
 
     private fun getCurrentWord(): String {
-        val text = currentText
-        val cursor = cursorPosition.coerceIn(0, text.length)
-        var start = cursor
-
-        while (
-            start > 0 &&
-            (text[start - 1].isLetter() || text[start - 1] == '\'')
-        ) { start-- }
-
-        return text.substring(start, cursor)
+        val before = currentInputConnection?.getTextBeforeCursor(64, 0) ?: return ""
+        var start = before.length
+        while (start > 0 && (before[start - 1].isLetter() || before[start - 1] == '\'')) start--
+        return before.substring(start)
     }
 
     private fun t9PrefixEnd(t9: String): String {
@@ -867,17 +793,27 @@ class WearKeyboardService : InputMethodService() {
         return t9 + '\uFFFF'
     }
 
+    private suspend fun querySuggestions(t9: String): List<String> = withContext(Dispatchers.IO) {
+        val db = dictionaryDatabase ?: return@withContext emptyList()
+        try {
+            db.dictionaryDao().getSuggestions(t9, t9PrefixEnd(t9)).map { it.word }
+        } catch (e: CancellationException) { throw e }
+        catch (e: IllegalStateException) { e.printStackTrace(); emptyList() }
+    }
+
     private fun selectSuggestion(word: String) {
         val connection = currentInputConnection ?: return
-        val currentWord = getCurrentWord()
+        val before = getCurrentWord().length
+        val tail = getWordTailLength()
 
-        if (currentWord.isNotEmpty()) {
-            connection.deleteSurroundingText(currentWord.length, 0)
+        if (before > 0 || tail > 0) {
+            connection.deleteSurroundingText(before, tail)
         }
 
-        connection.commitText("$word ", 1)
+        val addSpace = tail == 0
+        connection.commitText(if (addSpace) "$word " else word, 1)
 
-        spaceAfterSuggestion = true
+        spaceAfterSuggestion = addSpace
         suggestions = emptyList()
 
         if (!keyboardState.capsLock) {
@@ -893,23 +829,61 @@ class WearKeyboardService : InputMethodService() {
         updateText()
     }
 
-    private fun wordToT9(word: String): String {
+    private fun getWordTail(): String {
+        val after = currentInputConnection?.getTextAfterCursor(64, 0) ?: return ""
+        var i = 0
+        while (i < after.length && (after[i].isLetter() || after[i] == '\'')) i++
+        return after.substring(0, i)
+    }
+
+    private fun getWordTailLength() = getWordTail().length
+
+    private fun getFullWord(): String = getCurrentWord() + getWordTail()
+
+    private fun replaceWholeWord(connection: InputConnection, before: String, tail: String, newWord: String) {
+        val lettersBefore = before.count { it != '\'' }
+        var cut = 0
+        var seen = 0
+        while (cut < newWord.length && seen < lettersBefore) {
+            if (newWord[cut] != '\'') seen++
+            cut++
+        }
+        if (tail.isEmpty()) cut = newWord.length
+
+        connection.beginBatchEdit()
+        connection.deleteSurroundingText(before.length, tail.length)
+        connection.commitText(newWord.substring(0, cut), 1)
+        if (cut < newWord.length) {
+            connection.commitText(newWord.substring(cut), 0)
+        }
+        connection.endBatchEdit()
+    }
+
+    private fun String.t9Length() = count { it != '\'' }
+
+    private fun t9Map(): Map<Char, Char> = t9Maps.getOrPut(currentLayout) {
         val layout = when (currentLayout) {
             KeyboardLayout.ENGLISH -> KeyboardLayouts.english
             KeyboardLayout.UKRAINIAN -> KeyboardLayouts.ukrainian
         }
 
-        val t9Map = layout.flatten()
+        layout.flatten()
             .filter { it.type == KeyType.T9 }
             .flatMap { key ->
-                key.characters.filter { it.isLetter() }
+                key.characters
+                    .filter { it.isLetter() }
                     .map { it.lowercaseChar() to key.code.first() }
-            }.toMap()
+            }
+            .toMap()
+    }
+
+    private fun wordToT9(word: String): String {
+        val map = t9Map()
 
         return buildString(word.length) {
             for (character in word) {
                 if (character == '\'') continue
-                val digit = t9Map[character.lowercaseChar()] ?: return ""
+                val digit = map[character.lowercaseChar()] ?: return ""
                 append(digit)
             }
         }
@@ -918,21 +892,71 @@ class WearKeyboardService : InputMethodService() {
     private fun shouldAutoShift(): Boolean {
         if (!autoShiftEnabled) return false
         val connection = currentInputConnection ?: return false
-        val beforeCursor = connection.getTextBeforeCursor(100, 0)?.toString() ?: return true
-        val text = beforeCursor.trimEnd()
-
-        return text.isEmpty() || text.last() == '.' || text.last() == '!' || text.last() == '?'
+        val before = connection.getTextBeforeCursor(100, 0)?.toString() ?: return false
+        if (before.isBlank()) return true
+        val last = before.trimEnd().last()
+        return (last in ".!?…" && before.last().isWhitespace()) || before.last() == '\n'
     }
 
-    private fun String.applyKeyboardCase(keyboardState: KeyboardState): String {
-        return when {
-            keyboardState.capsLock -> {
-                uppercase()
+    private fun applyShiftToCurrentWord(isDoubleTap: Boolean): Boolean {
+        if (manualMode || !isT9Enabled()) return false
+        val connection = currentInputConnection ?: return false
+
+        val before = getCurrentWord()
+        if (before.isEmpty()) return false
+        val tailLength = getWordTailLength()
+        val tail = if (tailLength > 0) connection.getTextAfterCursor(tailLength, 0)?.toString().orEmpty() else ""
+
+        val t9 = wordToT9(before + tail)
+        if (t9.isEmpty()) return false
+
+        if (keyboardState.capsLock) {
+            keyboardState = keyboardState.copy(shift = false, capsLock = false)
+            wordCaseMode = CaseMode.LOWER
+        } else {
+            wordCaseMode = when {
+                isDoubleTap -> CaseMode.ALL
+                detectCaseMode(before + tail) == CaseMode.LOWER -> CaseMode.FIRST
+                else -> CaseMode.LOWER
             }
-            keyboardState.shift && this == lowercase() -> {
-                replaceFirstChar { it.uppercase() }
-            }
-            else -> this
         }
+
+        val newBefore = before.recase(wordCaseMode)
+        val newTail = tail.recase(if (wordCaseMode == CaseMode.FIRST) CaseMode.LOWER else wordCaseMode)
+
+        if (newBefore != before || newTail != tail) {
+            connection.beginBatchEdit()
+            connection.deleteSurroundingText(before.length, tail.length)
+            connection.commitText(newBefore, 1)
+            if (newTail.isNotEmpty()) connection.commitText(newTail, 0)
+            connection.endBatchEdit()
+        }
+
+        refreshT9(t9, autoReplace = false)
+        return true
+    }
+
+    private fun String.recase(mode: CaseMode): String = when (mode) {
+        CaseMode.ALL -> uppercase()
+        CaseMode.FIRST -> lowercase().replaceFirstChar { it.uppercase() }
+        CaseMode.LOWER -> lowercase()
+    }
+
+    private fun String.applyCase(mode: CaseMode): String = when (mode) {
+        CaseMode.ALL -> uppercase()
+        CaseMode.FIRST -> replaceFirstChar { it.uppercase() }
+        CaseMode.LOWER -> this
+    }
+
+    private fun detectCaseMode(word: String): CaseMode = when {
+        keyboardState.capsLock -> CaseMode.ALL
+        word.length > 1 && word.all { !it.isLetter() || it.isUpperCase() } -> CaseMode.ALL
+        word.first().isUpperCase() -> CaseMode.FIRST
+        else -> CaseMode.LOWER
+    }
+
+    private fun layoutFor(subtype: InputMethodSubtype?): KeyboardLayout? {
+        val tag = subtype?.languageTag?.substringBefore("-") ?: return null
+        return KeyboardLayout.entries.firstOrNull { it.languageTag == tag }
     }
 }

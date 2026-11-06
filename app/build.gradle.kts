@@ -15,7 +15,7 @@ android {
         minSdk = 34
         targetSdk = 36
         versionCode = 1
-        versionName = "2.5"
+        versionName = "2.6"
     }
 
     buildTypes {
@@ -50,7 +50,7 @@ dependencies {
     implementation("androidx.wear.compose:compose-material3:1.7.1")
 
     implementation("com.google.android.gms:play-services-wearable:20.0.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
 
     implementation("androidx.room:room-runtime:2.8.5")

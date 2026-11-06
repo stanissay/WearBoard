@@ -136,6 +136,8 @@ enum class KeyType {
     FUNCTION
 }
 
+enum class CaseMode { LOWER, FIRST, ALL }
+
 enum class KeyboardLayout(val languageTag: String) {
     ENGLISH("en"),
     UKRAINIAN("uk")
