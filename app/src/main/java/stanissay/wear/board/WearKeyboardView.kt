@@ -83,6 +83,8 @@ fun KeyboardScreen(
     suggestions: List<String>,
     manualMode: Boolean,
     isT9Enabled: Boolean,
+    isPassword: Boolean,
+    passwordVisible: Boolean,
     onKeyAction: (KeyAction) -> Unit,
     onLongClick: () -> Unit,
     onSuggestionClick: (String) -> Unit,
@@ -198,6 +200,8 @@ fun KeyboardScreen(
                     keyboardState = keyboardState,
                     isT9Enabled = isT9Enabled,
                     manualMode = manualMode,
+                    isPassword = isPassword,
+                    passwordVisible = passwordVisible,
                     modifier = Modifier.height(MainConstants.BUTTON_SIZE).padding(horizontal = MainConstants.DISPLAY_PADDING)
                 )
             }
@@ -286,6 +290,8 @@ fun FunctionKeys(
     keyboardState: KeyboardState,
     manualMode: Boolean,
     isT9Enabled: Boolean,
+    isPassword: Boolean,
+    passwordVisible: Boolean,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -296,8 +302,10 @@ fun FunctionKeys(
         keyboard.forEach { keys ->
             keys.forEach { key ->
                 val visible = when (key.code) {
-                    MainFunctions.ABC -> isT9Enabled && !manualMode
-                    MainFunctions.ADD -> isT9Enabled && manualMode
+                    MainFunctions.ABC -> isT9Enabled && !manualMode && !isPassword
+                    MainFunctions.ADD -> isT9Enabled && manualMode && !isPassword
+                    MainFunctions.SHOW -> isPassword
+                    MainFunctions.VOICE -> !isPassword
                     else -> true
                 }
                 if (!visible) return@forEach
@@ -308,15 +316,24 @@ fun FunctionKeys(
                 ) {
                     if (key.icon != null) {
                         Icon(
-                            painter = painterResource(key.icon),
+                            painter = painterResource(
+                                if (isPassword && key.code == MainFunctions.SHOW && passwordVisible) R.drawable.hide
+                                else key.icon
+                            ),
                             modifier = Modifier.size(MainConstants.BUTTON_SIZE_S),
-                            tint = if(key.code == MainFunctions.SHIFT) {
-                                when {
-                                    keyboardState.capsLock -> MaterialTheme.colors.primary
-                                    keyboardState.shift -> MaterialTheme.colors.secondary
-                                    else -> MaterialTheme.colors.surface
+                            tint = when(key.code) {
+                                MainFunctions.SHIFT -> {
+                                    when {
+                                        keyboardState.capsLock -> MaterialTheme.colors.primary
+                                        keyboardState.shift -> MaterialTheme.colors.secondary
+                                        else -> MaterialTheme.colors.surface
+                                    }
                                 }
-                            } else { MaterialTheme.colors.secondary },
+                                MainFunctions.SHOW -> {
+                                    if(!passwordVisible) MaterialTheme.colors.secondary else MaterialTheme.colors.surface
+                                }
+                                else -> MaterialTheme.colors.secondary
+                            },
                             contentDescription = null
                         )
                     } else { SecondAccentText(text = key.primaryLabel) }

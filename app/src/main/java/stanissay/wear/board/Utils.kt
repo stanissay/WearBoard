@@ -75,6 +75,7 @@ object MainFunctions {
     const val DELETE = KeyEvent.KEYCODE_DEL.toString()
     const val ABC = "abc_mode"
     const val ADD = "save"
+    const val SHOW = "show"
     const val SETTINGS = "settings"
     const val VOICE = "voice"
 }
@@ -459,6 +460,10 @@ object KeyboardLayouts {
             Key(
                 code = MainFunctions.ADD,
                 icon = R.drawable.add
+            ),
+            Key(
+                code = MainFunctions.SHOW,
+                icon = R.drawable.show
             ),
             Key(
                 code = MainFunctions.SHIFT,

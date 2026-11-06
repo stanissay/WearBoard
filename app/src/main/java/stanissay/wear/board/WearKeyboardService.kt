@@ -23,6 +23,7 @@ import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import android.view.WindowManager
 import android.view.inputmethod.*
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -44,6 +45,7 @@ class WearKeyboardService : InputMethodService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main + CoroutineExceptionHandler { _, e -> e.printStackTrace() })
     private var suggestionJob: Job? = null
     private var t9TimeoutJob: Job? = null
+    private var revealJob: Job? = null
     private var currentLayout by mutableStateOf(KeyboardLayout.ENGLISH)
     private var dictionaryDatabase: DictionaryDatabase? = null
     private var currentText by mutableStateOf("")
@@ -55,10 +57,19 @@ class WearKeyboardService : InputMethodService() {
     private var lastT9PressTime = 0L
     private var t9RequestId = 0L
     private var lastT9Key: Key? = null
+    private val pwd = StringBuilder()
+    private var pwdCursor = 0
+    private var revealRange by mutableStateOf(IntRange.EMPTY)
     private var keyboardVisible = false
     private var spaceAfterSuggestion = false
-    private var manualMode by mutableStateOf(false)
+    private var manualModeState by mutableStateOf(false)
+    private var manualMode: Boolean
+        get() = isPasswordField || manualModeState
+        set(value) { manualModeState = value }
     private var t9Enabled by mutableStateOf(true)
+    private var isPasswordField by mutableStateOf(false)
+    private var showPassword by mutableStateOf(false)
+    private var learningDisabled = false
     private var wordCaseMode = CaseMode.LOWER
     private val t9Maps = mutableMapOf<KeyboardLayout, Map<Char, Char>>()
     private val keyboard: List<List<Key>>
@@ -128,6 +139,10 @@ class WearKeyboardService : InputMethodService() {
             decorView.setViewTreeSavedStateRegistryOwner(lifecycleOwner)
             decorView.setViewTreeViewModelStoreOwner(lifecycleOwner)
         }
+        window?.window?.let {
+            if (isPasswordField) it.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            else it.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
 
         return ComposeView(this).apply {
             isFocusable = true
@@ -144,6 +159,8 @@ class WearKeyboardService : InputMethodService() {
                         suggestions = suggestions,
                         manualMode = manualMode,
                         isT9Enabled = isT9Enabled(),
+                        isPassword = isPasswordField,
+                        passwordVisible = showPassword,
                         onKeyAction = ::handleKey,
                         onLongClick = ::showKeyboardPicker,
                         onSuggestionClick = { selectSuggestion(it) },
@@ -192,13 +209,6 @@ class WearKeyboardService : InputMethodService() {
 
         loadT9Enabled()
 
-        if(!restarting) {
-            suggestions = emptyList()
-            manualMode = false; spaceAfterSuggestion = false
-            lastT9Key = null; wordCaseMode = CaseMode.LOWER
-            suggestionJob?.cancel(); t9TimeoutJob?.cancel()
-        }
-
         val requested = layoutFor(getSystemService(InputMethodManager::class.java).currentInputMethodSubtype)
 
         currentLayout = listOfNotNull(requested, KeyboardLayout.ENGLISH, KeyboardLayout.UKRAINIAN)
@@ -215,6 +225,17 @@ class WearKeyboardService : InputMethodService() {
         val inputVariation = inputType and InputType.TYPE_MASK_VARIATION
 
         autoShiftEnabled = inputClass == InputType.TYPE_CLASS_TEXT && inputVariation == InputType.TYPE_TEXT_VARIATION_NORMAL
+        isPasswordField = attribute?.isPassword() == true
+
+        val imeOptions = attribute?.imeOptions ?: 0
+        learningDisabled = isPasswordField || (imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) != 0
+
+        if (!restarting) {
+            showPassword = false; manualMode = false
+            suggestions = emptyList(); suggestionJob?.cancel()
+            t9RequestId++
+            pwd.clear(); pwdCursor = 0; revealRange = IntRange.EMPTY; revealJob?.cancel()
+        }
     }
 
     override fun onWindowShown() {
@@ -247,6 +268,9 @@ class WearKeyboardService : InputMethodService() {
     override fun onFinishInput() {
         super.onFinishInput()
         suggestionJob?.cancel(); t9TimeoutJob?.cancel(); t9RequestId++
+        if (isPasswordField) { currentText = ""; cursorPosition = 0 }
+        isPasswordField = false; showPassword = false
+        pwd.clear(); pwdCursor = 0; revealRange = IntRange.EMPTY; revealJob?.cancel()
     }
 
     override fun onFinishInputView(finishing: Boolean) {
@@ -275,25 +299,23 @@ class WearKeyboardService : InputMethodService() {
     }
 
     private fun handleCharacter(action: KeyAction.Character) {
-        val connection = currentInputConnection ?: return
-
         when (action.key.type) {
-            KeyType.T9 -> handleT9Character(action, connection)
-            KeyType.NORMAL -> handleNormalCharacter(action, connection)
+            KeyType.T9 -> handleT9Character(action)
+            KeyType.NORMAL -> handleNormalCharacter(action)
             KeyType.FUNCTION -> handleFunctionCharacter(action)
         }
     }
 
-    private fun handleT9Character(action: KeyAction.Character, connection: InputConnection) {
+    private fun handleT9Character(action: KeyAction.Character,) {
         if (isT9Enabled() && !manualMode && action.key.characters.any { it.isLetter() }) {
             handleT9Input(action.key)
             return
         }
 
-        handleMultiTap(action, connection)
+        handleMultiTap(action)
     }
 
-    private fun handleMultiTap(action: KeyAction.Character, connection: InputConnection) {
+    private fun handleMultiTap(action: KeyAction.Character) {
         val now = System.currentTimeMillis()
         val sameKey = action.key == lastT9Key
         val sequenceActive = sameKey && now - lastT9PressTime <= MainConstants.MULTI_TAP_THRESHOLD
@@ -304,7 +326,7 @@ class WearKeyboardService : InputMethodService() {
         ) { keyboardState = keyboardState.copy(shift = false) }
 
         if (action.isMultiTap) {
-            connection.deleteSurroundingText(1, 0)
+            imeDeleteBefore(1)
         }
 
         val uppercase = keyboardState.shift || keyboardState.capsLock
@@ -314,10 +336,10 @@ class WearKeyboardService : InputMethodService() {
         } else { action.character.lowercaseChar() }
 
         if (character in ".,?!;:" && spaceAfterSuggestion) {
-            connection.deleteSurroundingText(1, 0)
+            imeDeleteBefore(1)
         }
 
-        connection.commitText(character.toString(), 1)
+        imeCommit(character.toString())
 
         spaceAfterSuggestion = false
         lastT9Key = action.key
@@ -375,14 +397,12 @@ class WearKeyboardService : InputMethodService() {
     }
 
     private fun handleLongPress(action: KeyAction.LongPress) {
-        val connection = currentInputConnection ?: return
-
         spaceAfterSuggestion = false
 
         when (action.key.type) {
             KeyType.T9,
             KeyType.NORMAL -> {
-                connection.commitText(action.key.code, 1)
+                imeCommit(action.key.code)
                 suggestions = emptyList()
                 if (manualMode) manualMode = false
             }
@@ -391,7 +411,7 @@ class WearKeyboardService : InputMethodService() {
         }
     }
 
-    private fun handleNormalCharacter(action: KeyAction.Character, connection: InputConnection) {
+    private fun handleNormalCharacter(action: KeyAction.Character) {
         val uppercase = keyboardState.shift || keyboardState.capsLock
 
         val character =
@@ -401,7 +421,7 @@ class WearKeyboardService : InputMethodService() {
                 action.character.lowercaseChar()
             }
 
-        connection.commitText(character.toString(), 1)
+        imeCommit(character.toString())
 
         spaceAfterSuggestion = false
 
@@ -413,7 +433,7 @@ class WearKeyboardService : InputMethodService() {
     }
 
     private fun handleNormal(action: KeyAction.Normal) {
-        currentInputConnection?.commitText(action.key.code, 1)
+        imeCommit(action.key.code)
 
         suggestions = emptyList()
         spaceAfterSuggestion = false
@@ -440,6 +460,7 @@ class WearKeyboardService : InputMethodService() {
             MainFunctions.SHIFT -> handleShift()
             MainFunctions.ABC -> onAbc()
             MainFunctions.ADD -> saveWord()
+            MainFunctions.SHOW -> showPassword = !showPassword
             MainFunctions.VOICE -> startVoiceInput()
             MainFunctions.SETTINGS -> openSettings()
         }
@@ -488,23 +509,23 @@ class WearKeyboardService : InputMethodService() {
     }
 
     private fun deleteBeforeCursor(connection: InputConnection) {
-        if (!connection.getSelectedText(0).isNullOrEmpty()) { connection.commitText("", 1); return }
-        val text = connection.getTextBeforeCursor(100, 0)?.toString() ?: return
+        val text = if (isPasswordField) {
+            pwd.substring((pwdCursor - 100).coerceAtLeast(0), pwdCursor.coerceIn(0, pwd.length))
+        } else {
+            connection.getTextBeforeCursor(100, 0)?.toString() ?: return
+        }
         if (text.isEmpty()) return
 
         val iterator = BreakIterator.getCharacterInstance()
         iterator.setText(text)
         iterator.last()
-
         val start = iterator.previous()
 
-        if (start >= 0) {
-            connection.deleteSurroundingText(text.length - start, 0)
-        }
+        if (start >= 0) imeDeleteBefore(text.length - start)
     }
 
     private fun handleSpace() {
-        currentInputConnection?.commitText(" ", 1)
+        imeCommit(" ")
         if (manualMode) manualMode = false
         suggestions = emptyList()
         spaceAfterSuggestion = false
@@ -586,6 +607,7 @@ class WearKeyboardService : InputMethodService() {
 
     @SuppressLint("WearRecents")
     private fun startVoiceInput() {
+        if (isPasswordField) return
         val language = when (currentLayout) {
             KeyboardLayout.UKRAINIAN -> "uk-UA"
             KeyboardLayout.ENGLISH -> "en-US"
@@ -615,6 +637,18 @@ class WearKeyboardService : InputMethodService() {
     private fun updateText() {
         val connection = currentInputConnection ?: return
         val extracted = connection.getExtractedText(ExtractedTextRequest(), 0)
+
+        if (isPasswordField) {
+            extracted?.text?.length?.let { rawLength ->
+                if (rawLength != pwd.length) resyncPassword(rawLength)
+            }
+            extracted?.selectionStart?.takeIf { it >= 0 }?.let {
+                pwdCursor = it.coerceIn(0, pwd.length)
+            }
+            currentText = if (showPassword) pwd.toString() else maskedPassword()
+            cursorPosition = pwdCursor
+            return
+        }
 
         if (extracted != null) {
             currentText = extracted.text?.toString() ?: ""
@@ -699,6 +733,7 @@ class WearKeyboardService : InputMethodService() {
     }
 
     private fun onAbc() {
+        if (isPasswordField) return
         val connection = currentInputConnection ?: return
         val currentWord = getCurrentWord()
 
@@ -717,6 +752,8 @@ class WearKeyboardService : InputMethodService() {
     }
 
     private fun saveWord() {
+        if (learningDisabled) return
+        if (isPasswordField) return
         val word = getCurrentWord()
 
         if (word.isEmpty()) {
@@ -823,7 +860,7 @@ class WearKeyboardService : InputMethodService() {
         serviceScope.launch(Dispatchers.IO) {
             val database = dictionaryDatabase ?: return@launch
 
-            database.dictionaryDao().incrementFrequency(word)
+            if (!learningDisabled) database.dictionaryDao().incrementFrequency(word)
         }
 
         updateText()
@@ -958,5 +995,68 @@ class WearKeyboardService : InputMethodService() {
     private fun layoutFor(subtype: InputMethodSubtype?): KeyboardLayout? {
         val tag = subtype?.languageTag?.substringBefore("-") ?: return null
         return KeyboardLayout.entries.firstOrNull { it.languageTag == tag }
+    }
+
+    @SuppressLint("WearPasswordInput")
+    private fun EditorInfo.isPassword(): Boolean {
+        val cls = inputType and InputType.TYPE_MASK_CLASS
+        val variation = inputType and InputType.TYPE_MASK_VARIATION
+        return when (cls) {
+            InputType.TYPE_CLASS_TEXT ->
+                variation == InputType.TYPE_TEXT_VARIATION_PASSWORD ||
+                        variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
+                        variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD
+            InputType.TYPE_CLASS_NUMBER ->
+                variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            else -> false
+        }
+    }
+
+    private fun revealLast(from: Int, length: Int) {
+        revealRange = from until (from + length)
+        revealJob?.cancel()
+        revealJob = serviceScope.launch {
+            delay(1500.milliseconds)
+            revealRange = IntRange.EMPTY
+            updateText()
+        }
+    }
+
+    private fun maskedPassword(): String = buildString(pwd.length) {
+        for (i in pwd.indices) append(if (i in revealRange) pwd[i] else '•')
+    }
+
+    private fun imeCommit(text: String) {
+        val c = currentInputConnection ?: return
+        c.commitText(text, 1)
+
+        if (isPasswordField) {
+            pwdCursor = pwdCursor.coerceIn(0, pwd.length)
+            pwd.insert(pwdCursor, text)
+            revealLast(pwdCursor, text.length)
+            pwdCursor += text.length
+        }
+    }
+
+    private fun imeDeleteBefore(count: Int) {
+        val c = currentInputConnection ?: return
+        c.deleteSurroundingText(count, 0)
+
+        if (isPasswordField) {
+            val end = pwdCursor.coerceIn(0, pwd.length)
+            val start = (end - count).coerceAtLeast(0)
+            pwd.delete(start, end)
+            pwdCursor = start
+            revealRange = IntRange.EMPTY
+        }
+    }
+
+    private fun resyncPassword(rawLength: Int) {
+        when {
+            rawLength == 0 -> pwd.clear()
+            rawLength < pwd.length -> pwd.setLength(rawLength)
+            else -> repeat(rawLength - pwd.length) { pwd.append('•') }
+        }
+        pwdCursor = pwdCursor.coerceIn(0, pwd.length)
     }
 }

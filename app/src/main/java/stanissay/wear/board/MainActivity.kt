@@ -330,6 +330,8 @@ fun KeyboardPreview(viewModel: MainViewModel) {
         suggestions = emptyList(),
         manualMode = false,
         isT9Enabled = false,
+        isPassword = false,
+        passwordVisible = false,
         onKeyAction = {},
         onLongClick = {},
         onSuggestionClick = {},
