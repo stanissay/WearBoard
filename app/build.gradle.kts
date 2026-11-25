@@ -7,7 +7,9 @@ plugins {
 android {
     namespace = "stanissay.wear.board"
     compileSdk {
-        version = release(37)
+        version = release(37) {
+            minorApiLevel = 2
+        }
     }
 
     defaultConfig {
@@ -15,7 +17,7 @@ android {
         minSdk = 34
         targetSdk = 36
         versionCode = 1
-        versionName = "2.7"
+        versionName = "2.8"
     }
 
     buildTypes {
@@ -36,7 +38,7 @@ android {
 }
 
 dependencies {
-    implementation(platform("androidx.compose:compose-bom:2026.09.00"))
+    implementation(platform("androidx.compose:compose-bom:2026.11.01"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
 
@@ -45,13 +47,13 @@ dependencies {
 
     implementation("androidx.wear:wear:1.4.0")
 
-    implementation("androidx.wear.compose:compose-foundation:1.7.1")
-    implementation("androidx.wear.compose:compose-material:1.7.1")
-    implementation("androidx.wear.compose:compose-material3:1.7.1")
+    implementation("androidx.wear.compose:compose-foundation:1.7.2")
+    implementation("androidx.wear.compose:compose-material:1.7.2")
+    implementation("androidx.wear.compose:compose-material3:1.7.2")
 
     implementation("com.google.android.gms:play-services-wearable:20.0.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.13.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.1")
 
     implementation("androidx.room:room-runtime:2.8.5")
     ksp("androidx.room:room-compiler:2.8.5")
